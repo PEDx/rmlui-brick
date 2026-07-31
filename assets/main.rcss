@@ -1,0 +1,222 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    color: #edf3ff;
+    background: #090d18;
+    font-family: "Alibaba PuHuiTi 3.0";
+    font-size: 20px;
+}
+
+#screen {
+    width: 100%;
+    height: 100%;
+    padding: 42px 50px 30px;
+    display: flex;
+    flex-direction: column;
+    background-color: #090d18;
+}
+
+header, footer {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+
+header {
+    height: 84px;
+    padding-bottom: 20px;
+    border-bottom: 1px #293247;
+}
+
+h1, h2, p {
+    display: block;
+    margin: 0;
+}
+
+h1 {
+    color: #f6f9ff;
+    font-size: 34px;
+    letter-spacing: 8px;
+}
+
+.subtitle {
+    margin-top: 4px;
+    color: #69768f;
+    font-size: 15px;
+    letter-spacing: 3px;
+}
+
+.metrics {
+    display: flex;
+    gap: 14px;
+    color: #8d9bb4;
+    font-size: 17px;
+}
+
+.dot {
+    color: #4de2bd;
+}
+
+main {
+    height: 556px;
+    display: flex;
+    flex-direction: row;
+    padding-top: 32px;
+}
+
+aside {
+    width: 270px;
+    padding-right: 30px;
+    border-right: 1px #293247;
+}
+
+.eyebrow {
+    margin-bottom: 16px;
+    color: #64718a;
+    font-size: 14px;
+    letter-spacing: 4px;
+}
+
+.accent {
+    color: #4de2bd;
+}
+
+.nav-item {
+    width: 100%;
+    height: 62px;
+    margin-bottom: 8px;
+    padding: 0 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: #8d9bb4;
+    background: transparent;
+    border: 2px transparent;
+    font-family: "Alibaba PuHuiTi 3.0";
+    font-size: 20px;
+    text-align: left;
+}
+
+.nav-item:focus, .nav-item:focus-visible {
+    color: #071019;
+    background: #4de2bd;
+    border-color: #b8ffed;
+}
+
+.nav-item .icon {
+    width: 25px;
+    text-align: center;
+}
+
+.nav-item .count {
+    margin-left: auto;
+    color: #64718a;
+    font-size: 15px;
+}
+
+.nav-item:focus .count, .nav-item:focus-visible .count {
+    color: #24594e;
+}
+
+.content {
+    width: 652px;
+    padding-left: 42px;
+}
+
+.hero {
+    height: 294px;
+    padding: 30px 34px;
+    overflow: hidden;
+    background: #151d2e;
+    border: 1px #33405a;
+}
+
+h2 {
+    width: 470px;
+    color: #ffffff;
+    font-size: 40px;
+    line-height: 1.15;
+}
+
+.description {
+    width: 530px;
+    margin-top: 16px;
+    color: #91a0bb;
+    font-size: 17px;
+    line-height: 1.45;
+}
+
+.chips {
+    margin-top: 19px;
+    display: flex;
+    gap: 10px;
+}
+
+.chips span {
+    padding: 7px 12px;
+    color: #b3c2da;
+    background: #202b40;
+    border: 1px #394963;
+    font-size: 13px;
+}
+
+.cards {
+    height: 178px;
+    margin-top: 18px;
+    display: flex;
+    gap: 14px;
+}
+
+.card {
+    width: 31.8%;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    background: #111828;
+    border: 1px #2b374d;
+}
+
+.card span {
+    font-size: 14px;
+    letter-spacing: 2px;
+}
+
+.card strong {
+    margin-top: 38px;
+    color: #eef4ff;
+    font-size: 19px;
+}
+
+.card small {
+    margin-top: 7px;
+    color: #75839e;
+    font-size: 13px;
+}
+
+.cyan span { color: #4de2bd; }
+.violet span { color: #a79aff; }
+.amber span { color: #ffc56d; }
+
+footer {
+    height: 56px;
+    margin-top: auto;
+    padding-top: 22px;
+    color: #66738c;
+    border-top: 1px #293247;
+    font-size: 13px;
+}
+
+#status {
+    color: #aab8d0;
+}
+
+#renderer {
+    max-width: 590px;
+    text-align: right;
+}

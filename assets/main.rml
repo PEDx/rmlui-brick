@@ -1,0 +1,66 @@
+<rml>
+<head>
+    <title>TrimUI Brick RmlUi Prototype</title>
+    <link type="text/rcss" href="main.rcss"/>
+</head>
+<body>
+    <div id="screen">
+        <header>
+            <div>
+                <h1>TRIMUI</h1>
+                <p class="subtitle">RmlUi 最小渲染验证</p>
+            </div>
+            <div class="metrics">
+                <span id="fps">等待帧率…</span>
+                <span class="dot">●</span>
+                <span>1024 × 768</span>
+            </div>
+        </header>
+
+        <main>
+            <aside>
+                <p class="eyebrow">LIBRARY</p>
+                <button id="item-recent" class="nav-item">
+                    <span class="icon">●</span><span>最近游玩</span><span class="count">03</span>
+                </button>
+                <button id="item-games" class="nav-item">
+                    <span class="icon">◆</span><span>游戏库</span><span class="count">24</span>
+                </button>
+                <button id="item-apps" class="nav-item">
+                    <span class="icon">■</span><span>应用</span><span class="count">08</span>
+                </button>
+                <button id="item-favorites" class="nav-item">
+                    <span class="icon">★</span><span>收藏</span><span class="count">11</span>
+                </button>
+                <button id="item-settings" class="nav-item">
+                    <span class="icon">●</span><span>设置</span><span class="count">›</span>
+                </button>
+            </aside>
+
+            <section class="content">
+                <div class="hero">
+                    <p class="eyebrow accent">RENDER CHECK</p>
+                    <h2>掌机界面已经<br/>交给 RmlUi</h2>
+                    <p class="description">这个画面同时验证布局、中文字体、三角形几何、透明混合和矩形裁剪。</p>
+                    <div class="chips">
+                        <span>SDL_RenderGeometry</span>
+                        <span>FreeType</span>
+                        <span>RCSS Flex</span>
+                    </div>
+                </div>
+
+                <div class="cards">
+                    <div class="card cyan"><span>01</span><strong>中文字体</strong><small>动态字形纹理</small></div>
+                    <div class="card violet"><span>02</span><strong>手柄输入</strong><small>方向键 / A / B</small></div>
+                    <div class="card amber"><span>03</span><strong>透明混合</strong><small>PowerVR GLES2</small></div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <div id="status">方向键选择 · A 确认 · B 退出</div>
+            <div id="renderer">正在读取 SDL renderer…</div>
+        </footer>
+    </div>
+</body>
+</rml>
