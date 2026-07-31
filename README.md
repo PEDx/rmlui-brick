@@ -2,6 +2,15 @@
 
 这个原型验证 RmlUi 6.2 能否通过 TrimUI Brick 自带的 SDL2/OpenGL ES 2 渲染，并验证中文字体、基础 RCSS、手柄输入和安全退出。
 
+RCSS 能写哪些属性、与浏览器 CSS 有什么差异，以及当前最小 renderer 的能力
+边界，见 [RmlUi 6.2 RCSS 使用指南](docs/RCSS_GUIDE.md)。
+
+RML 可用 UI 元素、表单控件、滚动列表和掌机焦点联动，见
+[RML UI 元素与滚动列表](docs/RML_ELEMENTS.md)。
+
+设备现有模拟器情况、GBA 方案以及桌面退出/模拟器运行/桌面恢复的接入流程，见
+[模拟器接入方案](docs/EMULATOR_INTEGRATION.md)。
+
 ## 当前结论
 
 实机验证已经通过：
@@ -122,6 +131,7 @@ cd /mnt/UDISK/trimui-dev/rmlui-prototype/current
 --seconds N         N 秒后自动退出
 --screenshot FILE   稳定渲染后保存 BMP 截图
 --renderer NAME     指定 SDL renderer；Brick 使用 opengles2
+--dp-ratio N        UI 密度倍率；默认 2.0，可在 0.5～4.0 间调试
 --fullscreen        1024×768 全屏
 ```
 

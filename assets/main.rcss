@@ -1,3 +1,7 @@
+/*
+ * Native 1024x768 rendering with a default RmlUi density ratio of 2.0.
+ * Use dp for readable UI sizes and px only for physical-pixel hairlines.
+ */
 * {
     box-sizing: border-box;
 }
@@ -7,21 +11,22 @@ body {
     height: 100%;
     margin: 0;
     color: #edf3ff;
-    background: #090d18;
+    background-color: #090d18;
     font-family: "Alibaba PuHuiTi 3.0";
-    font-size: 20px;
+    font-size: 16dp;
 }
 
 #screen {
     width: 100%;
     height: 100%;
-    padding: 42px 50px 30px;
+    padding: 20dp 24dp 14dp;
     display: flex;
     flex-direction: column;
     background-color: #090d18;
 }
 
-header, footer {
+header,
+footer {
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -29,58 +34,73 @@ header, footer {
 }
 
 header {
-    height: 84px;
-    padding-bottom: 20px;
+    height: 48dp;
+    padding-bottom: 9dp;
     border-bottom: 1px #293247;
 }
 
-h1, h2, p {
+h1,
+h2,
+p {
     display: block;
     margin: 0;
 }
 
 h1 {
     color: #f6f9ff;
-    font-size: 34px;
-    letter-spacing: 8px;
+    font-size: 22dp;
+    line-height: 1;
+    letter-spacing: 4px;
+}
+
+.brand {
+    width: 150dp;
+    flex-shrink: 0;
 }
 
 .subtitle {
-    margin-top: 4px;
-    color: #69768f;
-    font-size: 15px;
-    letter-spacing: 3px;
+    margin-top: 3dp;
+    color: #77849d;
+    font-size: 10dp;
+    line-height: 1;
+    letter-spacing: 2px;
 }
 
 .metrics {
+    flex-shrink: 0;
     display: flex;
-    gap: 14px;
-    color: #8d9bb4;
-    font-size: 17px;
+    align-items: center;
+    gap: 6dp;
+    color: #9aa8c0;
+    font-size: 10dp;
 }
 
 .dot {
     color: #4de2bd;
+    font-size: 7dp;
 }
 
 main {
-    height: 556px;
+    min-height: 0;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: row;
-    padding-top: 32px;
+    padding-top: 12dp;
 }
 
 aside {
-    width: 270px;
-    padding-right: 30px;
+    width: 145dp;
+    flex: 0 0 145dp;
+    padding-right: 14dp;
     border-right: 1px #293247;
 }
 
 .eyebrow {
-    margin-bottom: 16px;
-    color: #64718a;
-    font-size: 14px;
-    letter-spacing: 4px;
+    margin-bottom: 7dp;
+    color: #71809b;
+    font-size: 9dp;
+    line-height: 1;
+    letter-spacing: 2px;
 }
 
 .accent {
@@ -89,134 +109,162 @@ aside {
 
 .nav-item {
     width: 100%;
-    height: 62px;
-    margin-bottom: 8px;
-    padding: 0 18px;
+    height: 39dp;
+    margin-bottom: 4dp;
+    padding: 0 8dp;
     display: flex;
     align-items: center;
-    gap: 14px;
-    color: #8d9bb4;
-    background: transparent;
-    border: 2px transparent;
+    gap: 7dp;
+    color: #a3b0c7;
+    background-color: transparent;
+    border: 1px transparent;
     font-family: "Alibaba PuHuiTi 3.0";
-    font-size: 20px;
+    font-size: 14dp;
     text-align: left;
 }
 
-.nav-item:focus, .nav-item:focus-visible {
+.nav-item:focus,
+.nav-item:focus-visible {
     color: #071019;
-    background: #4de2bd;
+    background-color: #4de2bd;
     border-color: #b8ffed;
 }
 
 .nav-item .icon {
-    width: 25px;
+    width: 12dp;
+    color: #62718d;
+    font-size: 9dp;
     text-align: center;
+}
+
+.nav-item:focus .icon,
+.nav-item:focus-visible .icon {
+    color: #24594e;
 }
 
 .nav-item .count {
     margin-left: auto;
-    color: #64718a;
-    font-size: 15px;
+    color: #71809b;
+    font-size: 10dp;
 }
 
-.nav-item:focus .count, .nav-item:focus-visible .count {
+.nav-item:focus .count,
+.nav-item:focus-visible .count {
     color: #24594e;
 }
 
 .content {
-    width: 652px;
-    padding-left: 42px;
+    min-width: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    padding-left: 20dp;
 }
 
 .hero {
-    height: 294px;
-    padding: 30px 34px;
+    width: 100%;
+    height: 146dp;
+    padding: 12dp 16dp;
     overflow: hidden;
-    background: #151d2e;
+    background-color: #151d2e;
     border: 1px #33405a;
+    decorator: vertical-gradient(#182237 #111827);
 }
 
 h2 {
-    width: 470px;
+    width: 100%;
     color: #ffffff;
-    font-size: 40px;
-    line-height: 1.15;
+    font-size: 22dp;
+    line-height: 1.08;
 }
 
 .description {
-    width: 530px;
-    margin-top: 16px;
-    color: #91a0bb;
-    font-size: 17px;
-    line-height: 1.45;
+    margin-top: 7dp;
+    color: #a7b4ca;
+    font-size: 11dp;
+    line-height: 1.3;
 }
 
 .chips {
-    margin-top: 19px;
+    margin-top: 8dp;
     display: flex;
-    gap: 10px;
+    gap: 5dp;
 }
 
 .chips span {
-    padding: 7px 12px;
-    color: #b3c2da;
-    background: #202b40;
-    border: 1px #394963;
-    font-size: 13px;
+    padding: 3dp 6dp;
+    color: #c0cce0;
+    background-color: #202b40;
+    border: 1px #43536d;
+    font-size: 9dp;
 }
 
 .cards {
-    height: 178px;
-    margin-top: 18px;
+    min-height: 0;
+    margin-top: 9dp;
+    flex: 1 1 auto;
     display: flex;
-    gap: 14px;
+    gap: 7dp;
 }
 
 .card {
-    width: 31.8%;
-    padding: 20px;
+    min-width: 0;
+    flex: 1 1 0;
+    padding: 9dp;
     display: flex;
     flex-direction: column;
-    background: #111828;
+    background-color: #111828;
     border: 1px #2b374d;
 }
 
 .card span {
-    font-size: 14px;
-    letter-spacing: 2px;
+    font-size: 9dp;
+    line-height: 1;
+    letter-spacing: 1px;
 }
 
 .card strong {
-    margin-top: 38px;
+    margin-top: 16dp;
     color: #eef4ff;
-    font-size: 19px;
+    font-size: 13dp;
+    line-height: 1;
 }
 
 .card small {
-    margin-top: 7px;
-    color: #75839e;
-    font-size: 13px;
+    margin-top: 4dp;
+    color: #8795ae;
+    font-size: 10dp;
+    line-height: 1;
 }
 
-.cyan span { color: #4de2bd; }
-.violet span { color: #a79aff; }
-.amber span { color: #ffc56d; }
+.cyan span {
+    color: #4de2bd;
+}
+
+.violet span {
+    color: #a79aff;
+}
+
+.amber span {
+    color: #ffc56d;
+}
 
 footer {
-    height: 56px;
+    height: 26dp;
     margin-top: auto;
-    padding-top: 22px;
-    color: #66738c;
+    padding-top: 8dp;
+    color: #75839c;
     border-top: 1px #293247;
-    font-size: 13px;
+    font-size: 9dp;
 }
 
 #status {
-    color: #aab8d0;
+    color: #b8c4d8;
+    font-size: 10dp;
 }
 
 #renderer {
-    max-width: 590px;
+    max-width: 285dp;
+    font-size: 8dp;
     text-align: right;
 }

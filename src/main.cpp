@@ -26,6 +26,7 @@ struct Options {
     std::string font;
     std::string renderer;
     std::string screenshot;
+    float dp_ratio = 2.0f;
     int exit_after_seconds = 0;
     bool fullscreen = false;
 };
@@ -34,7 +35,7 @@ void PrintUsage(const char* program)
 {
     std::fprintf(
         stderr,
-        "Usage: %s --font FILE [--assets DIR] [--renderer NAME] [--fullscreen] [--seconds N] [--screenshot BMP]\n",
+        "Usage: %s --font FILE [--assets DIR] [--renderer NAME] [--dp-ratio N] [--fullscreen] [--seconds N] [--screenshot BMP]\n",
         program);
 }
 
@@ -52,6 +53,13 @@ bool ParseOptions(int argc, char** argv, Options& options)
             options.renderer = argv[++i];
         } else if (std::strcmp(argument, "--screenshot") == 0 && i + 1 < argc) {
             options.screenshot = argv[++i];
+        } else if (std::strcmp(argument, "--dp-ratio") == 0 && i + 1 < argc) {
+            char* end = nullptr;
+            options.dp_ratio = std::strtof(argv[++i], &end);
+            if (!end || *end != '\0' || options.dp_ratio < 0.5f || options.dp_ratio > 4.0f) {
+                std::fprintf(stderr, "Invalid dp ratio; expected a number from 0.5 to 4.0\n");
+                return false;
+            }
         } else if (std::strcmp(argument, "--seconds") == 0 && i + 1 < argc) {
             options.exit_after_seconds = std::atoi(argv[++i]);
         } else if (std::strcmp(argument, "--help") == 0) {
@@ -217,6 +225,15 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "[fatal] RmlUi context creation failed\n");
         goto shutdown_rmlui;
     }
+    context->SetDensityIndependentPixelRatio(options.dp_ratio);
+    std::fprintf(
+        stderr,
+        "[ui] context=%dx%d dp_ratio=%.2f logical=%.0fx%.0f dp\n",
+        kWidth,
+        kHeight,
+        options.dp_ratio,
+        kWidth / options.dp_ratio,
+        kHeight / options.dp_ratio);
 
     if (!Rml::LoadFontFace(options.font)) {
         std::fprintf(stderr, "[fatal] cannot load font: %s\n", options.font.c_str());
@@ -230,6 +247,7 @@ int main(int argc, char** argv)
         goto shutdown_rmlui;
     }
     document->Show();
+    SetText(document, "density", Rml::CreateString("%.2g× DP", options.dp_ratio));
     SetText(document, "renderer", render_interface.GetDiagnostics());
     std::fprintf(stderr, "[render] %s\n", render_interface.GetDiagnostics().c_str());
 
@@ -321,7 +339,7 @@ int main(int argc, char** argv)
             context->Update();
             render_interface.BeginFrame();
             context->Render();
-            if (!options.screenshot.empty() && !screenshot_saved && total_frames >= 45) {
+            if (!options.screenshot.empty() && !screenshot_saved && total_frames >= 75) {
                 screenshot_saved = SaveScreenshot(renderer, options.screenshot);
             }
             render_interface.EndFrame();

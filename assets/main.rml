@@ -6,14 +6,16 @@
 <body>
     <div id="screen">
         <header>
-            <div>
+            <div class="brand">
                 <h1>TRIMUI</h1>
-                <p class="subtitle">RmlUi 最小渲染验证</p>
+                <p class="subtitle">RmlUi 掌机界面原型</p>
             </div>
             <div class="metrics">
                 <span id="fps">等待帧率…</span>
                 <span class="dot">●</span>
                 <span>1024 × 768</span>
+                <span class="dot">●</span>
+                <span id="density">2× DP</span>
             </div>
         </header>
 
@@ -40,19 +42,19 @@
             <section class="content">
                 <div class="hero">
                     <p class="eyebrow accent">RENDER CHECK</p>
-                    <h2>掌机界面已经<br/>交给 RmlUi</h2>
-                    <p class="description">这个画面同时验证布局、中文字体、三角形几何、透明混合和矩形裁剪。</p>
+                    <h2>为高密度掌机<br/>重新设计界面</h2>
+                    <p class="description">布局、中文、输入与透明混合都已通过实机验证。</p>
                     <div class="chips">
-                        <span>SDL_RenderGeometry</span>
-                        <span>FreeType</span>
-                        <span>RCSS Flex</span>
+                        <span>2× DP</span>
+                        <span>原生 1024 × 768</span>
+                        <span>RCSS FLEX</span>
                     </div>
                 </div>
 
                 <div class="cards">
-                    <div class="card cyan"><span>01</span><strong>中文字体</strong><small>动态字形纹理</small></div>
-                    <div class="card violet"><span>02</span><strong>手柄输入</strong><small>方向键 / A / B</small></div>
-                    <div class="card amber"><span>03</span><strong>透明混合</strong><small>PowerVR GLES2</small></div>
+                    <div class="card cyan"><span>01</span><strong>清晰文字</strong><small>16dp 正文基准</small></div>
+                    <div class="card violet"><span>02</span><strong>舒适焦点</strong><small>78px 可选区域</small></div>
+                    <div class="card amber"><span>03</span><strong>原生渲染</strong><small>PowerVR GLES2</small></div>
                 </div>
             </section>
         </main>
