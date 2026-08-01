@@ -33,6 +33,17 @@ if(NOT TARGET SDL2::SDL2)
   )
 endif()
 
+find_package(SDL2_image QUIET CONFIG)
+if(NOT TARGET SDL2_image::SDL2_image)
+  find_path(SDL2_IMAGE_INCLUDE_DIR SDL_image.h PATH_SUFFIXES SDL2 REQUIRED)
+  find_library(SDL2_IMAGE_LIBRARY NAMES SDL2_image REQUIRED)
+  add_library(SDL2_image::SDL2_image UNKNOWN IMPORTED)
+  set_target_properties(SDL2_image::SDL2_image PROPERTIES
+    IMPORTED_LOCATION "${SDL2_IMAGE_LIBRARY}"
+    INTERFACE_INCLUDE_DIRECTORIES "${SDL2_IMAGE_INCLUDE_DIR}"
+  )
+endif()
+
 add_executable(trimui-rmlui-prototype
   src/main.cpp
   src/prototype_render_interface.cpp
@@ -41,7 +52,10 @@ add_executable(trimui-rmlui-prototype
 
 target_compile_features(trimui-rmlui-prototype PRIVATE cxx_std_14)
 target_compile_definitions(trimui-rmlui-prototype PRIVATE SDL_MAIN_HANDLED)
-target_link_libraries(trimui-rmlui-prototype PRIVATE RmlUi::Core RmlUi::Debugger SDL2::SDL2)
+target_link_libraries(
+  trimui-rmlui-prototype
+  PRIVATE RmlUi::Core RmlUi::Debugger SDL2::SDL2 SDL2_image::SDL2_image
+)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(trimui-rmlui-prototype PRIVATE -Wall -Wextra -Wpedantic)

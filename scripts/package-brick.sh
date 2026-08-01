@@ -20,8 +20,7 @@ elif [ -x /opt/homebrew/opt/llvm@21/bin/llvm-strip ]; then
 else
     echo "warning: llvm-strip was not found; packaging an unstripped binary" >&2
 fi
-cp "$PROJECT_DIR/assets/main.rml" "$PACKAGE_DIR/assets/main.rml"
-cp "$PROJECT_DIR/assets/main.rcss" "$PACKAGE_DIR/assets/main.rcss"
+cp -R "$PROJECT_DIR/assets/." "$PACKAGE_DIR/assets/"
 cp "$PROJECT_DIR/assets/launch-brick.sh" "$PACKAGE_DIR/launch.sh"
 chmod +x "$PACKAGE_DIR/trimui-rmlui-prototype" "$PACKAGE_DIR/launch.sh"
 

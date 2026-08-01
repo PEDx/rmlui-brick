@@ -4,29 +4,41 @@
 #include <RmlUi/Core.h>
 #include <RmlUi/Debugger.h>
 #include <SDL.h>
+#include <SDL_image.h>
 
 #include <array>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
+#include <fstream>
 #include <string>
 
 namespace {
 
 constexpr int kWidth = 1024;
 constexpr int kHeight = 768;
-constexpr std::array<const char*, 5> kItemIds = {
-    "item-recent", "item-games", "item-apps", "item-favorites", "item-settings"};
-constexpr std::array<const char*, 5> kItemLabels = {
-    "最近游玩", "游戏库", "应用", "收藏", "设置"};
+
+struct ModelInfo {
+    const char* id;
+    const char* title;
+    const char* subtitle;
+    const char* image;
+};
+
+constexpr std::array<ModelInfo, 3> kModels = {{
+    {"model-gb", "GAME BOY", "1989 · PLAY IT LOUD", "icons/gb-dmg-simple.png"},
+    {"model-gbc", "GAME BOY COLOR", "1998 · COLOR IN YOUR HANDS", "icons/gbc-atomic-purple-simple.png"},
+    {"model-gba", "GAME BOY ADVANCE", "2001 · ADVANCE YOUR PLAY", "icons/gba-indigo-simple.png"},
+}};
 
 struct Options {
     std::string assets = "assets";
     std::string font;
     std::string renderer;
     std::string screenshot;
-    float dp_ratio = 2.0f;
+    float dp_ratio = 1.0f;
     int exit_after_seconds = 0;
     bool fullscreen = false;
 };
@@ -80,35 +92,117 @@ void SetText(Rml::ElementDocument* document, const char* id, const Rml::String& 
         element->SetInnerRML(value);
 }
 
-class FocusController {
+int ReadBatteryPercent()
+{
+    std::ifstream stream("/sys/class/power_supply/axp2202-battery/capacity");
+    int percent = -1;
+    if (stream >> percent && percent >= 0 && percent <= 100)
+        return percent;
+    return -1;
+}
+
+void UpdateDeviceStatus(Rml::ElementDocument* document)
+{
+    const std::time_t now = std::time(nullptr);
+    std::tm local_time = {};
+#if defined(_WIN32)
+    localtime_s(&local_time, &now);
+#else
+    localtime_r(&now, &local_time);
+#endif
+    char clock[16] = {};
+    std::strftime(clock, sizeof(clock), "%H:%M", &local_time);
+    SetText(document, "clock", clock);
+
+    const int battery = ReadBatteryPercent();
+    if (battery >= 0) {
+        SetText(document, "battery-text", Rml::CreateString("%d%%", battery));
+        if (Rml::Element* fill = document->GetElementById("battery-fill"))
+            fill->SetProperty("width", Rml::CreateString("%d%%", battery));
+    } else {
+        SetText(document, "battery-text", "--%");
+        if (Rml::Element* fill = document->GetElementById("battery-fill"))
+            fill->SetProperty("width", "0%");
+    }
+}
+
+class DesktopController {
 public:
-    explicit FocusController(Rml::ElementDocument* document) : document(document) { Select(0); }
+    explicit DesktopController(Rml::ElementDocument* document) : document(document) { UpdateCarousel(); }
 
     void Move(int delta)
     {
-        const int count = static_cast<int>(kItemIds.size());
-        Select((selected + delta + count) % count);
-        SetText(document, "status", Rml::CreateString("焦点移动：%s", kItemLabels[selected]));
+        if (detail_visible)
+            return;
+        const int count = static_cast<int>(kModels.size());
+        selected = (selected + delta + count) % count;
+        UpdateCarousel();
     }
 
     void Activate()
     {
-        Rml::Element* element = document->GetElementById(kItemIds[selected]);
-        if (element)
-            element->Click();
-        SetText(document, "status", Rml::CreateString("A / Enter 已确认：%s", kItemLabels[selected]));
+        if (detail_visible)
+            return;
+
+        const ModelInfo& model = kModels[selected];
+        SetText(document, "detail-title", model.title);
+        SetText(document, "detail-subtitle", model.subtitle);
+        if (Rml::Element* image = document->GetElementById("detail-image"))
+            image->SetAttribute("src", model.image);
+        SetDisplay("home-view", "none");
+        SetDisplay("home-footer", "none");
+        SetDisplay("detail-view", "flex");
+        SetDisplay("detail-footer", "flex");
+        detail_visible = true;
+    }
+
+    bool Back()
+    {
+        if (!detail_visible)
+            return false;
+
+        SetDisplay("detail-view", "none");
+        SetDisplay("detail-footer", "none");
+        SetDisplay("home-view", "flex");
+        SetDisplay("home-footer", "flex");
+        detail_visible = false;
+        UpdateCarousel();
+        return true;
     }
 
 private:
-    void Select(int index)
+    void SetDisplay(const char* id, const char* value)
     {
-        selected = index;
-        if (Rml::Element* element = document->GetElementById(kItemIds[selected]))
-            element->Focus(true);
+        if (Rml::Element* element = document->GetElementById(id))
+            element->SetProperty("display", value);
+    }
+
+    void UpdateCarousel()
+    {
+        const int count = static_cast<int>(kModels.size());
+        const int left = (selected + count - 1) % count;
+        const int right = (selected + 1) % count;
+
+        for (int index = 0; index < count; ++index) {
+            if (Rml::Element* card = document->GetElementById(kModels[index].id)) {
+                card->SetClass("slot-left", index == left);
+                card->SetClass("slot-center", index == selected);
+                card->SetClass("slot-right", index == right);
+                card->SetClass("selected", index == selected);
+                if (index == selected)
+                    card->Focus(true);
+            }
+            if (Rml::Element* dot = document->GetElementById(Rml::CreateString("position-%d", index)))
+                dot->SetClass("active", index == selected);
+        }
+
+        SetText(document, "selected-title", kModels[selected].title);
+        SetText(document, "selected-subtitle", kModels[selected].subtitle);
     }
 
     Rml::ElementDocument* document = nullptr;
-    int selected = 0;
+    int selected = 1;
+    bool detail_visible = false;
 };
 
 void LogJoystick(SDL_Joystick* joystick)
@@ -142,13 +236,16 @@ bool SaveScreenshot(SDL_Renderer* renderer, const std::string& path)
     return success;
 }
 
-bool HandleControllerButton(Uint8 button, bool& running, FocusController& focus)
+bool HandleControllerButton(Uint8 button, bool& running, DesktopController& desktop)
 {
     switch (button) {
-    case SDL_CONTROLLER_BUTTON_DPAD_UP: focus.Move(-1); return true;
-    case SDL_CONTROLLER_BUTTON_DPAD_DOWN: focus.Move(1); return true;
-    case SDL_CONTROLLER_BUTTON_A: focus.Activate(); return true;
-    case SDL_CONTROLLER_BUTTON_B: running = false; return true;
+    case SDL_CONTROLLER_BUTTON_DPAD_LEFT: desktop.Move(-1); return true;
+    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: desktop.Move(1); return true;
+    case SDL_CONTROLLER_BUTTON_A: desktop.Activate(); return true;
+    case SDL_CONTROLLER_BUTTON_B:
+        if (!desktop.Back())
+            running = false;
+        return true;
     default: return false;
     }
 }
@@ -174,6 +271,12 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    if ((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == 0) {
+        std::fprintf(stderr, "[fatal] SDL_image PNG initialisation failed: %s\n", IMG_GetError());
+        SDL_Quit();
+        return 1;
+    }
+
     const Uint32 window_flags = options.fullscreen ? SDL_WINDOW_FULLSCREEN : 0;
     SDL_Window* window = SDL_CreateWindow(
         "RmlUi on TrimUI Brick",
@@ -184,6 +287,7 @@ int main(int argc, char** argv)
         window_flags);
     if (!window) {
         std::fprintf(stderr, "[fatal] SDL_CreateWindow failed: %s\n", SDL_GetError());
+        IMG_Quit();
         SDL_Quit();
         return 1;
     }
@@ -197,6 +301,7 @@ int main(int argc, char** argv)
     if (!renderer) {
         std::fprintf(stderr, "[fatal] SDL_CreateRenderer failed: %s\n", SDL_GetError());
         SDL_DestroyWindow(window);
+        IMG_Quit();
         SDL_Quit();
         return 1;
     }
@@ -228,7 +333,7 @@ int main(int argc, char** argv)
     context->SetDensityIndependentPixelRatio(options.dp_ratio);
     std::fprintf(
         stderr,
-        "[ui] context=%dx%d dp_ratio=%.2f logical=%.0fx%.0f dp\n",
+        "[ui] context=%dx%d dp_ratio=%.2f logical=%.2fx%.2f dp\n",
         kWidth,
         kHeight,
         options.dp_ratio,
@@ -247,8 +352,7 @@ int main(int argc, char** argv)
         goto shutdown_rmlui;
     }
     document->Show();
-    SetText(document, "density", Rml::CreateString("%.2g× DP", options.dp_ratio));
-    SetText(document, "renderer", render_interface.GetDiagnostics());
+    UpdateDeviceStatus(document);
     std::fprintf(stderr, "[render] %s\n", render_interface.GetDiagnostics().c_str());
 
     for (int index = 0; index < SDL_NumJoysticks(); ++index) {
@@ -268,14 +372,15 @@ int main(int argc, char** argv)
     LogJoystick(joystick);
 
     {
-        FocusController focus(document);
+        DesktopController desktop(document);
         bool running = true;
-        bool axis_up = false;
-        bool axis_down = false;
+        bool axis_left = false;
+        bool axis_right = false;
         Uint64 frame_count = 0;
         Uint64 total_frames = 0;
         bool screenshot_saved = false;
         Uint64 fps_frame_start = SDL_GetPerformanceCounter();
+        Uint64 status_update_start = fps_frame_start;
         const Uint64 app_start = fps_frame_start;
         const Uint64 frequency = SDL_GetPerformanceFrequency();
 
@@ -287,49 +392,52 @@ int main(int argc, char** argv)
                 case SDL_KEYDOWN:
                     if (event.key.repeat)
                         break;
-                    if (event.key.keysym.sym == SDLK_UP)
-                        focus.Move(-1);
-                    else if (event.key.keysym.sym == SDLK_DOWN)
-                        focus.Move(1);
+                    if (event.key.keysym.sym == SDLK_LEFT)
+                        desktop.Move(-1);
+                    else if (event.key.keysym.sym == SDLK_RIGHT)
+                        desktop.Move(1);
                     else if (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_SPACE)
-                        focus.Activate();
-                    else if (event.key.keysym.sym == SDLK_ESCAPE || event.key.keysym.sym == SDLK_q)
-                        running = false;
+                        desktop.Activate();
+                    else if (event.key.keysym.sym == SDLK_ESCAPE || event.key.keysym.sym == SDLK_BACKSPACE) {
+                        if (!desktop.Back())
+                            running = false;
+                    } else if (event.key.keysym.sym == SDLK_q)
+                            running = false;
                     else if (event.key.keysym.sym == SDLK_F8)
                         Rml::Debugger::SetVisible(!Rml::Debugger::IsVisible());
                     break;
                 case SDL_CONTROLLERBUTTONDOWN:
                     std::fprintf(stderr, "[input] controller button=%u\n", event.cbutton.button);
-                    HandleControllerButton(event.cbutton.button, running, focus);
+                    HandleControllerButton(event.cbutton.button, running, desktop);
                     break;
                 case SDL_JOYBUTTONDOWN:
                     std::fprintf(stderr, "[input] joystick button=%u\n", event.jbutton.button);
                     if (!controller) {
                         if (event.jbutton.button == 0)
-                            focus.Activate();
-                        else if (event.jbutton.button == 1)
-                            running = false;
+                            desktop.Activate();
+                        else if (event.jbutton.button == 1 && !desktop.Back())
+                                running = false;
                     }
                     break;
                 case SDL_JOYHATMOTION:
                     std::fprintf(stderr, "[input] hat=%u value=%u\n", event.jhat.hat, event.jhat.value);
                     if (!controller) {
-                        if (event.jhat.value & SDL_HAT_UP)
-                            focus.Move(-1);
-                        else if (event.jhat.value & SDL_HAT_DOWN)
-                            focus.Move(1);
+                        if (event.jhat.value & SDL_HAT_LEFT)
+                            desktop.Move(-1);
+                        else if (event.jhat.value & SDL_HAT_RIGHT)
+                            desktop.Move(1);
                     }
                     break;
                 case SDL_JOYAXISMOTION:
-                    if (!controller && event.jaxis.axis == 1) {
-                        const bool new_up = event.jaxis.value < -16000;
-                        const bool new_down = event.jaxis.value > 16000;
-                        if (new_up && !axis_up)
-                            focus.Move(-1);
-                        if (new_down && !axis_down)
-                            focus.Move(1);
-                        axis_up = new_up;
-                        axis_down = new_down;
+                    if (!controller && event.jaxis.axis == 0) {
+                        const bool new_left = event.jaxis.value < -16000;
+                        const bool new_right = event.jaxis.value > 16000;
+                        if (new_left && !axis_left)
+                            desktop.Move(-1);
+                        if (new_right && !axis_right)
+                            desktop.Move(1);
+                        axis_left = new_left;
+                        axis_right = new_right;
                     }
                     break;
                 default: break;
@@ -350,10 +458,14 @@ int main(int argc, char** argv)
             const double sample_seconds = static_cast<double>(now - fps_frame_start) / frequency;
             if (sample_seconds >= 0.5) {
                 const double fps = static_cast<double>(frame_count) / sample_seconds;
-                SetText(document, "fps", Rml::CreateString("%.1f FPS", fps));
                 std::fprintf(stderr, "[frame] %.1f FPS renderer_ok=%s\n", fps, render_interface.IsHealthy() ? "yes" : "no");
                 frame_count = 0;
                 fps_frame_start = now;
+            }
+
+            if (static_cast<double>(now - status_update_start) / frequency >= 1.0) {
+                UpdateDeviceStatus(document);
+                status_update_start = now;
             }
 
             if (options.exit_after_seconds > 0 &&
@@ -374,6 +486,7 @@ shutdown_rmlui:
 shutdown_sdl:
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
+    IMG_Quit();
     SDL_Quit();
     return exit_code;
 }

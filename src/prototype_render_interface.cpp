@@ -2,6 +2,7 @@
 
 #include <RmlUi/Core/Core.h>
 #include <RmlUi/Core/Log.h>
+#include <SDL_image.h>
 
 #include <memory>
 
@@ -104,11 +105,58 @@ Rml::TextureHandle PrototypeRenderInterface::LoadTexture(
     const Rml::String& source)
 {
     texture_dimensions = {};
-    Rml::Log::Message(
-        Rml::Log::LT_WARNING,
-        "Image loading is intentionally disabled in the minimum prototype: %s",
-        source.c_str());
-    return {};
+    SDL_Surface* loaded = IMG_Load(source.c_str());
+    if (!loaded) {
+        healthy = false;
+        Rml::Log::Message(Rml::Log::LT_ERROR, "IMG_Load failed for %s: %s", source.c_str(), IMG_GetError());
+        return {};
+    }
+
+    SDL_Surface* surface = SDL_ConvertSurfaceFormat(loaded, SDL_PIXELFORMAT_RGBA32, 0);
+    SDL_FreeSurface(loaded);
+    if (!surface) {
+        healthy = false;
+        Rml::Log::Message(Rml::Log::LT_ERROR, "Image conversion failed for %s: %s", source.c_str(), SDL_GetError());
+        return {};
+    }
+
+    if (SDL_MUSTLOCK(surface))
+        SDL_LockSurface(surface);
+    for (int y = 0; y < surface->h; ++y) {
+        auto* row = static_cast<Uint8*>(surface->pixels) + y * surface->pitch;
+        for (int x = 0; x < surface->w; ++x) {
+            Uint8* pixel = row + x * 4;
+            const Uint8 alpha = pixel[3];
+            pixel[0] = static_cast<Uint8>((static_cast<unsigned>(pixel[0]) * alpha + 127) / 255);
+            pixel[1] = static_cast<Uint8>((static_cast<unsigned>(pixel[1]) * alpha + 127) / 255);
+            pixel[2] = static_cast<Uint8>((static_cast<unsigned>(pixel[2]) * alpha + 127) / 255);
+        }
+    }
+    if (SDL_MUSTLOCK(surface))
+        SDL_UnlockSurface(surface);
+
+    SDL_Texture* texture = SDL_CreateTexture(
+        renderer,
+        SDL_PIXELFORMAT_RGBA32,
+        SDL_TEXTUREACCESS_STATIC,
+        surface->w,
+        surface->h);
+    if (!texture || SDL_UpdateTexture(texture, nullptr, surface->pixels, surface->pitch) != 0) {
+        healthy = false;
+        Rml::Log::Message(Rml::Log::LT_ERROR, "Image texture upload failed for %s: %s", source.c_str(), SDL_GetError());
+        if (texture)
+            SDL_DestroyTexture(texture);
+        SDL_FreeSurface(surface);
+        return {};
+    }
+
+    texture_dimensions = {surface->w, surface->h};
+    SDL_FreeSurface(surface);
+    SDL_SetTextureBlendMode(texture, premultiplied_alpha);
+#if SDL_VERSION_ATLEAST(2, 0, 12)
+    SDL_SetTextureScaleMode(texture, SDL_ScaleModeLinear);
+#endif
+    return reinterpret_cast<Rml::TextureHandle>(texture);
 }
 
 Rml::TextureHandle PrototypeRenderInterface::GenerateTexture(

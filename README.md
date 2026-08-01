@@ -1,8 +1,12 @@
-# RmlUi on TrimUI Brick：最小原型
+# rmlui-brick
 
-这个原型验证 RmlUi 6.2 能否通过 TrimUI Brick 自带的 SDL2/OpenGL ES 2 渲染，并验证中文字体、基础 RCSS、手柄输入和安全退出。
+基于 **RmlUi + SDL2** 为 TrimUI Brick 持续开发的掌机桌面项目。界面使用设备原生 1024×768 物理像素设计，目标是提供机型选择、游戏浏览、模拟器启动、系统状态和统一的游戏内视觉体验。
 
-RCSS 能写哪些属性、与浏览器 CSS 有什么差异，以及当前最小 renderer 的能力
+![rmlui-brick 第一版桌面实机截图](docs/images/desktop-v1.png)
+
+上图由 TrimUI Brick 实机运行后直接截取。当前首页顶部显示时间和电量，中间通过横向 roll 选择 Game Boy、Game Boy Color 和 Game Boy Advance；选中机型居中放大，方向键左右切换，A 键进入，B 键返回或退出。
+
+RCSS 能写哪些属性、与浏览器 CSS 有什么差异，以及当前 renderer 的能力
 边界，见 [RmlUi 6.2 RCSS 使用指南](docs/RCSS_GUIDE.md)。
 
 RML 可用 UI 元素、表单控件、滚动列表和掌机焦点联动，见
@@ -11,7 +15,7 @@ RML 可用 UI 元素、表单控件、滚动列表和掌机焦点联动，见
 设备现有模拟器情况、GBA 方案以及桌面退出/模拟器运行/桌面恢复的接入流程，见
 [模拟器接入方案](docs/EMULATOR_INTEGRATION.md)。
 
-## 当前结论
+## 当前状态
 
 实机验证已经通过：
 
@@ -19,9 +23,13 @@ RML 可用 UI 元素、表单控件、滚动列表和掌机焦点联动，见
 - SDL renderer 为 `opengles2`；
 - `SDL_RenderGeometry`、矩形裁剪和字体纹理工作正常；
 - 预乘 Alpha 自定义混合模式可用，`renderer_ok=yes`；
+- SDL2_image PNG 解码、透明图标和纹理上传工作正常；
 - 使用设备 `/usr/trimui/res/regular.ttf` 的阿里巴巴普惠体，中文显示正常；
-- 稳定帧率约 60 FPS；
-- SDL 将内置手柄识别为 `Xbox 360 Controller`，方向键、A、B 可收到；
+- 首页时间和 AXP2202 电池电量读取正常；
+- GB/GBC/GBA 横向机型 roll、选中放大和循环切换正常；
+- A 键进入机型页面，B 键返回；在首页按 B 可安全退出；
+- SDL 将内置手柄识别为 `Xbox 360 Controller`；
+- 第一版桌面在 PNG 合成和状态更新开启时稳定约 60.2 FPS；
 - 程序退出后，原厂 `MainUI` 会由 `runtrimui.sh` 自动恢复；
 - 没有修改原厂 `MainUI` 或开机流程。
 
@@ -44,6 +52,10 @@ RML 可用 UI 元素、表单控件、滚动列表和掌机焦点联动，见
 ├── assets/
 │   ├── main.rml
 │   ├── main.rcss
+│   ├── icons/
+│   │   ├── gb-dmg-simple.png
+│   │   ├── gbc-atomic-purple-simple.png
+│   │   └── gba-indigo-simple.png
 │   └── launch-brick.sh
 ├── cmake/
 │   └── zig-aarch64-linux.cmake
@@ -54,31 +66,35 @@ RML 可用 UI 元素、表单控件、滚动列表和掌机焦点联动，见
 │   ├── run-brick.sh
 │   ├── run-macos.sh
 │   └── setup-toolchain.sh
+├── docs/
+│   ├── images/desktop-v1.png
+│   ├── EMULATOR_INTEGRATION.md
+│   ├── RCSS_GUIDE.md
+│   └── RML_ELEMENTS.md
 └── src/
     ├── main.cpp
     ├── prototype_render_interface.*
     └── prototype_system_interface.*
 ```
 
-不含 RmlUi 第三方源码，原型约 1,000 行，其中 C/C++ 约 600 行，RML/RCSS 约 290 行，其余为构建和工具链脚本。
-
 ## 关键技术选择
 
 - 固定 RmlUi 6.2 commit `2230d1a6e8e0848ed87a5761e2a5160b2a175ba4`；
 - 使用 C++14 编译，以匹配 RmlUi 6.2 和旧目标环境；正式项目仍可使用 C++17；
-- 不使用官方 SDL renderer 的桌面 OpenGL 编译检查；原型包含一个最小 SDL renderer，直接调用 `SDL_RenderGeometry`；
-- 仅动态链接设备已有的 SDL2、FreeType 和 glibc；C++ 标准库由 Zig 链接，不依赖目标机的 `GLIBCXX` 版本；
-- 使用 TrimUI TG5040 SDK 的 SDL2/FreeType 头文件和链接库；
+- 自定义 RmlUi SDL renderer 直接调用 `SDL_RenderGeometry`；
+- 使用 SDL2_image 加载 PNG，并在上传前转换为预乘 Alpha；
+- 仅动态链接设备已有的 SDL2、SDL2_image、FreeType 和 glibc；C++ 标准库由 Zig 链接，不依赖目标机的 `GLIBCXX` 版本；
+- 使用 TrimUI TG5040 SDK 的 SDL2、SDL2_image 和 FreeType 头文件及链接库；
 - 默认不包含字体文件，实机复用原厂字体，避免复制或重新分发字体资源。
 
-同一个方向键动作会同时产生 SDL GameController 和底层 Joystick hat 事件。原型在 GameController 成功打开时只处理高层事件，底层 hat/axis 仅作为兼容后备，防止一次按键移动两格。
+同一个方向键动作会同时产生 SDL GameController 和底层 Joystick hat 事件。程序在 GameController 成功打开时只处理高层事件，底层 hat/axis 仅作为兼容后备，防止一次按键移动两格。
 
 ## 构建
 
-开发机需要 CMake 和 Zig：
+开发机需要 CMake、Zig 和 SDL2_image：
 
 ```sh
-brew install cmake zig
+brew install cmake zig sdl2_image
 git clone --depth 1 --branch 6.2 \
   https://github.com/mikke89/RmlUi.git /tmp/RmlUi-6.2
 ```
@@ -131,7 +147,7 @@ cd /mnt/UDISK/trimui-dev/rmlui-prototype/current
 --seconds N         N 秒后自动退出
 --screenshot FILE   稳定渲染后保存 BMP 截图
 --renderer NAME     指定 SDL renderer；Brick 使用 opengles2
---dp-ratio N        UI 密度倍率；默认 2.0，可在 0.5～4.0 间调试
+--dp-ratio N        UI 密度倍率；默认 1.0，可在 0.5～4.0 间调试
 --fullscreen        1024×768 全屏
 ```
 
@@ -141,18 +157,18 @@ cd /mnt/UDISK/trimui-dev/rmlui-prototype/current
 
 ## 当前限制
 
-- 这是兼容性原型，不是桌面框架；
-- 图片加载有意关闭，只验证 RmlUi 动态生成的字体纹理；
-- 焦点管理目前是单列循环，不包含二维空间导航；
-- 只映射了上、下、A、B，其他按键仅用于后续扩展；
-- 尚未接入游戏扫描、电池、网络、音量、启动游戏或休眠恢复；
-- Debugger 已编入原型，正式 Release 应移除以减小代码量；
+- 机型进入页目前是占位页面，尚未接入 ROM 扫描、封面和简介；
+- 尚未启动 MinArch/libretro core，也没有存档、退出和桌面恢复的完整游戏链路；
+- 尚未接入网络、音量、亮度和休眠恢复状态；
+- 模拟器画面的整数缩放、LCD fragment shader 和机型 Overlay 尚未实现；
+- Debugger 仍编入开发版本，正式 Release 应移除以减小代码量；
 - 原厂脚本会输出一次无害的 `setterm: not found`，不影响 SDL/RmlUi 渲染。
 
 ## 下一步
 
-1. 增加图片纹理加载，验证 PNG 透明度和纹理缓存；
-2. 建立统一的 Brick 输入映射和按键重复策略；
-3. 抽出 UI 数据模型和设备 adapter；
-4. 做应用/游戏列表长列表与封面压力测试；
-5. 验证原生 OSD、休眠和唤醒后的 GLES2 上下文恢复。
+1. 为 GB/GBC/GBA 建立 ROM 数据模型、目录扫描和游戏页面；
+2. 加载游戏封面、简介、收藏和最近游玩状态；
+3. 接入 MinArch 与 Gambatte、gpSP/mGBA core；
+4. 实现桌面退出、游戏运行、存档和返回桌面的完整链路；
+5. 接入整数缩放、LCD shader 和机型 Overlay；
+6. 验证原生 OSD、休眠和唤醒后的图形上下文恢复。

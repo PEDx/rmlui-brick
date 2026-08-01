@@ -1,7 +1,4 @@
-/*
- * Native 1024x768 rendering with a default RmlUi density ratio of 2.0.
- * Use dp for readable UI sizes and px only for physical-pixel hairlines.
- */
+/* Native 1024x768 layout. Values map directly to physical pixels. */
 * {
     box-sizing: border-box;
 }
@@ -10,33 +7,14 @@ body {
     width: 100%;
     height: 100%;
     margin: 0;
-    color: #edf3ff;
-    background-color: #090d18;
+    color: #171611;
+    background-color: #f3efe5;
     font-family: "Alibaba PuHuiTi 3.0";
-    font-size: 16dp;
+    font-size: 28px;
 }
 
-#screen {
-    width: 100%;
-    height: 100%;
-    padding: 20dp 24dp 14dp;
-    display: flex;
-    flex-direction: column;
-    background-color: #090d18;
-}
-
-header,
-footer {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-}
-
-header {
-    height: 48dp;
-    padding-bottom: 9dp;
-    border-bottom: 1px #293247;
+button {
+    font-family: "Alibaba PuHuiTi 3.0";
 }
 
 h1,
@@ -46,225 +24,346 @@ p {
     margin: 0;
 }
 
-h1 {
-    color: #f6f9ff;
-    font-size: 22dp;
+#screen {
+    width: 100%;
+    height: 100%;
+    padding: 20px 40px 18px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background-color: #f3efe5;
+    decorator: vertical-gradient(#f8f5ed #eee8dc);
+}
+
+.status-bar {
+    height: 58px;
+    flex: 0 0 58px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px #d7d0c2;
+}
+
+.system-mark,
+.device-status {
+    display: flex;
+    align-items: center;
+}
+
+.system-mark {
+    gap: 11px;
+    color: #29271f;
+    font-size: 22px;
+    letter-spacing: 4px;
+}
+
+.system-dot {
+    width: 10px;
+    height: 10px;
+    background-color: #6246c7;
+    border-radius: 5px;
+}
+
+.device-status {
+    gap: 11px;
+    color: #29271f;
+    font-size: 24px;
+}
+
+#clock {
+    width: 72px;
+    text-align: right;
+}
+
+.status-separator {
+    width: 1px;
+    height: 20px;
+    margin: 0 5px;
+    background-color: #c9c1b2;
+}
+
+.battery-shell {
+    width: 38px;
+    height: 18px;
+    padding: 2px;
+    border: 2px #29271f;
+    border-radius: 4px;
+}
+
+#battery-fill {
+    width: 70%;
+    height: 100%;
+    display: block;
+    background-color: #6246c7;
+}
+
+#battery-text {
+    width: 52px;
+    color: #5f5a4e;
+    font-size: 21px;
+}
+
+#home-view {
+    min-height: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+}
+
+.section-heading {
+    height: 112px;
+    flex: 0 0 112px;
+    padding-top: 17px;
+    text-align: center;
+}
+
+.eyebrow {
+    color: #8b8476;
+    font-size: 16px;
     line-height: 1;
     letter-spacing: 4px;
 }
 
-.brand {
-    width: 150dp;
-    flex-shrink: 0;
-}
-
-.subtitle {
-    margin-top: 3dp;
-    color: #77849d;
-    font-size: 10dp;
-    line-height: 1;
-    letter-spacing: 2px;
-}
-
-.metrics {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    gap: 6dp;
-    color: #9aa8c0;
-    font-size: 10dp;
-}
-
-.dot {
-    color: #4de2bd;
-    font-size: 7dp;
-}
-
-main {
-    min-height: 0;
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: row;
-    padding-top: 12dp;
-}
-
-aside {
-    width: 145dp;
-    flex: 0 0 145dp;
-    padding-right: 14dp;
-    border-right: 1px #293247;
-}
-
-.eyebrow {
-    margin-bottom: 7dp;
-    color: #71809b;
-    font-size: 9dp;
-    line-height: 1;
-    letter-spacing: 2px;
-}
-
-.accent {
-    color: #4de2bd;
-}
-
-.nav-item {
-    width: 100%;
-    height: 39dp;
-    margin-bottom: 4dp;
-    padding: 0 8dp;
-    display: flex;
-    align-items: center;
-    gap: 7dp;
-    color: #a3b0c7;
-    background-color: transparent;
-    border: 1px transparent;
-    font-family: "Alibaba PuHuiTi 3.0";
-    font-size: 14dp;
-    text-align: left;
-}
-
-.nav-item:focus,
-.nav-item:focus-visible {
-    color: #071019;
-    background-color: #4de2bd;
-    border-color: #b8ffed;
-}
-
-.nav-item .icon {
-    width: 12dp;
-    color: #62718d;
-    font-size: 9dp;
-    text-align: center;
-}
-
-.nav-item:focus .icon,
-.nav-item:focus-visible .icon {
-    color: #24594e;
-}
-
-.nav-item .count {
-    margin-left: auto;
-    color: #71809b;
-    font-size: 10dp;
-}
-
-.nav-item:focus .count,
-.nav-item:focus-visible .count {
-    color: #24594e;
-}
-
-.content {
-    min-width: 0;
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: column;
-    padding-left: 20dp;
-}
-
-.hero {
-    width: 100%;
-    height: 146dp;
-    padding: 12dp 16dp;
-    overflow: hidden;
-    background-color: #151d2e;
-    border: 1px #33405a;
-    decorator: vertical-gradient(#182237 #111827);
-}
-
-h2 {
-    width: 100%;
-    color: #ffffff;
-    font-size: 22dp;
-    line-height: 1.08;
-}
-
-.description {
-    margin-top: 7dp;
-    color: #a7b4ca;
-    font-size: 11dp;
-    line-height: 1.3;
-}
-
-.chips {
-    margin-top: 8dp;
-    display: flex;
-    gap: 5dp;
-}
-
-.chips span {
-    padding: 3dp 6dp;
-    color: #c0cce0;
-    background-color: #202b40;
-    border: 1px #43536d;
-    font-size: 9dp;
-}
-
-.cards {
-    min-height: 0;
-    margin-top: 9dp;
-    flex: 1 1 auto;
-    display: flex;
-    gap: 7dp;
-}
-
-.card {
-    min-width: 0;
-    flex: 1 1 0;
-    padding: 9dp;
-    display: flex;
-    flex-direction: column;
-    background-color: #111828;
-    border: 1px #2b374d;
-}
-
-.card span {
-    font-size: 9dp;
+h1 {
+    margin-top: 7px;
+    color: #171611;
+    font-size: 39px;
     line-height: 1;
     letter-spacing: 1px;
 }
 
-.card strong {
-    margin-top: 16dp;
-    color: #eef4ff;
-    font-size: 13dp;
+.subtitle {
+    margin-top: 6px;
+    color: #817a6d;
+    font-size: 17px;
     line-height: 1;
+    letter-spacing: 2px;
 }
 
-.card small {
-    margin-top: 4dp;
-    color: #8795ae;
-    font-size: 10dp;
+#console-roll {
+    width: 944px;
+    height: 471px;
+    flex: 0 0 471px;
+    position: relative;
+    overflow: hidden;
+}
+
+.selection-backdrop {
+    position: absolute;
+    left: 265px;
+    top: 26px;
+    width: 414px;
+    height: 414px;
+    background-color: #e5ddf5;
+    border: 1px #d2c5ec;
+    border-radius: 207px;
+}
+
+.model-card {
+    position: absolute;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #6f695d;
+    background-color: transparent;
+    border: 0px transparent;
+    opacity: 0.48;
+    transition: left 0.18s, top 0.18s, width 0.18s, height 0.18s, opacity 0.18s, color 0.18s;
+}
+
+.model-card.slot-left {
+    left: 4px;
+    top: 139px;
+    width: 224px;
+    height: 286px;
+}
+
+.model-card.slot-center {
+    left: 252px;
+    top: 0px;
+    width: 440px;
+    height: 468px;
+    color: #171611;
+    opacity: 1;
+}
+
+.model-card.slot-right {
+    left: 716px;
+    top: 139px;
+    width: 224px;
+    height: 286px;
+}
+
+.console-image {
+    width: 224px;
+    height: 224px;
+    display: block;
+}
+
+.slot-center .console-image {
+    width: 424px;
+    height: 424px;
+}
+
+.model-short-name {
+    margin-top: 5px;
+    font-size: 18px;
     line-height: 1;
+    letter-spacing: 1px;
+    white-space: nowrap;
 }
 
-.cyan span {
-    color: #4de2bd;
+.slot-center .model-short-name {
+    margin-top: -1px;
+    font-size: 24px;
+    letter-spacing: 2px;
 }
 
-.violet span {
-    color: #a79aff;
+.position-dots {
+    height: 22px;
+    flex: 0 0 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 11px;
 }
 
-.amber span {
-    color: #ffc56d;
+.position-dot {
+    width: 7px;
+    height: 7px;
+    display: block;
+    background-color: #c9c1b3;
+    border-radius: 4px;
 }
 
-footer {
-    height: 26dp;
-    margin-top: auto;
-    padding-top: 8dp;
-    color: #75839c;
-    border-top: 1px #293247;
-    font-size: 9dp;
+.position-dot.active {
+    width: 24px;
+    background-color: #6246c7;
 }
 
-#status {
-    color: #b8c4d8;
-    font-size: 10dp;
+.control-bar {
+    height: 67px;
+    flex: 0 0 67px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 42px;
+    border-top: 1px #d7d0c2;
 }
 
-#renderer {
-    max-width: 285dp;
-    font-size: 8dp;
-    text-align: right;
+.control-hint {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #716a5f;
+    font-size: 21px;
+}
+
+.primary-action {
+    color: #171611;
+}
+
+.secondary-action {
+    margin-left: auto;
+}
+
+.keycap {
+    height: 34px;
+    display: block;
+    color: #ffffff;
+    background-color: #27251f;
+    border: 1px #454138;
+    font-size: 18px;
+    line-height: 30px;
+    text-align: center;
+}
+
+.keycap-wide {
+    min-width: 70px;
+    padding: 0 10px;
+    border-radius: 8px;
+}
+
+.keycap-round {
+    width: 34px;
+    border-radius: 17px;
+}
+
+.primary-action .keycap {
+    background-color: #6246c7;
+    border-color: #755cd1;
+}
+
+.keycap-muted {
+    color: #5d574d;
+    background-color: #dfd8ca;
+    border-color: #c8bfae;
+}
+
+#detail-view {
+    min-height: 0;
+    flex: 1 1 auto;
+    display: none;
+    flex-direction: row;
+    align-items: center;
+}
+
+.detail-copy {
+    width: 47%;
+    padding-left: 52px;
+}
+
+.detail-copy h2 {
+    margin-top: 12px;
+    color: #171611;
+    font-size: 56px;
+    line-height: 1.02;
+}
+
+#detail-subtitle {
+    margin-top: 13px;
+    color: #786f62;
+    font-size: 19px;
+    letter-spacing: 2px;
+}
+
+.detail-rule {
+    width: 72px;
+    height: 5px;
+    margin-top: 28px;
+    background-color: #6246c7;
+}
+
+.detail-message {
+    margin-top: 18px;
+    color: #70695d;
+    font-size: 25px;
+}
+
+.detail-art-frame {
+    width: 53%;
+    height: 540px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#detail-image {
+    width: 480px;
+    height: 480px;
+}
+
+#detail-footer {
+    display: none;
+    justify-content: space-between;
+}
+
+.detail-status {
+    color: #938b7d;
+    font-size: 18px;
+    letter-spacing: 1px;
 }

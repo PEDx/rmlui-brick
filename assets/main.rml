@@ -1,67 +1,90 @@
 <rml>
 <head>
-    <title>TrimUI Brick RmlUi Prototype</title>
+    <title>Brick Handheld Library</title>
     <link type="text/rcss" href="main.rcss"/>
 </head>
 <body>
     <div id="screen">
-        <header>
-            <div class="brand">
-                <h1>TRIMUI</h1>
-                <p class="subtitle">RmlUi 掌机界面原型</p>
+        <header class="status-bar">
+            <div class="system-mark">
+                <span class="system-dot"></span>
+                <span>BRICK</span>
             </div>
-            <div class="metrics">
-                <span id="fps">等待帧率…</span>
-                <span class="dot">●</span>
-                <span>1024 × 768</span>
-                <span class="dot">●</span>
-                <span id="density">2× DP</span>
+            <div class="device-status">
+                <span id="clock">--:--</span>
+                <span class="status-separator"></span>
+                <div class="battery-shell"><span id="battery-fill"></span></div>
+                <span id="battery-text">--%</span>
             </div>
         </header>
 
-        <main>
-            <aside>
-                <p class="eyebrow">LIBRARY</p>
-                <button id="item-recent" class="nav-item">
-                    <span class="icon">●</span><span>最近游玩</span><span class="count">03</span>
-                </button>
-                <button id="item-games" class="nav-item">
-                    <span class="icon">◆</span><span>游戏库</span><span class="count">24</span>
-                </button>
-                <button id="item-apps" class="nav-item">
-                    <span class="icon">■</span><span>应用</span><span class="count">08</span>
-                </button>
-                <button id="item-favorites" class="nav-item">
-                    <span class="icon">★</span><span>收藏</span><span class="count">11</span>
-                </button>
-                <button id="item-settings" class="nav-item">
-                    <span class="icon">●</span><span>设置</span><span class="count">›</span>
-                </button>
-            </aside>
+        <main id="home-view">
+            <div class="section-heading">
+                <p class="eyebrow">CHOOSE YOUR SYSTEM</p>
+                <h1 id="selected-title">GAME BOY COLOR</h1>
+                <p id="selected-subtitle" class="subtitle">1998 · COLOR IN YOUR HANDS</p>
+            </div>
 
-            <section class="content">
-                <div class="hero">
-                    <p class="eyebrow accent">RENDER CHECK</p>
-                    <h2>为高密度掌机<br/>重新设计界面</h2>
-                    <p class="description">布局、中文、输入与透明混合都已通过实机验证。</p>
-                    <div class="chips">
-                        <span>2× DP</span>
-                        <span>原生 1024 × 768</span>
-                        <span>RCSS FLEX</span>
-                    </div>
-                </div>
+            <div id="console-roll">
+                <div class="selection-backdrop"></div>
 
-                <div class="cards">
-                    <div class="card cyan"><span>01</span><strong>清晰文字</strong><small>16dp 正文基准</small></div>
-                    <div class="card violet"><span>02</span><strong>舒适焦点</strong><small>78px 可选区域</small></div>
-                    <div class="card amber"><span>03</span><strong>原生渲染</strong><small>PowerVR GLES2</small></div>
-                </div>
-            </section>
+                <button id="model-gb" class="model-card model-gb slot-left">
+                    <img class="console-image" src="icons/gb-dmg-simple.png"/>
+                    <span class="model-short-name">GAME BOY</span>
+                </button>
+
+                <button id="model-gbc" class="model-card model-gbc slot-center selected">
+                    <img class="console-image" src="icons/gbc-atomic-purple-simple.png"/>
+                    <span class="model-short-name">GAME BOY COLOR</span>
+                </button>
+
+                <button id="model-gba" class="model-card model-gba slot-right">
+                    <img class="console-image" src="icons/gba-indigo-simple.png"/>
+                    <span class="model-short-name">GAME BOY ADVANCE</span>
+                </button>
+            </div>
+
+            <div class="position-dots">
+                <span id="position-0" class="position-dot"></span>
+                <span id="position-1" class="position-dot active"></span>
+                <span id="position-2" class="position-dot"></span>
+            </div>
         </main>
 
-        <footer>
-            <div id="status">方向键选择 · A 确认 · B 退出</div>
-            <div id="renderer">正在读取 SDL renderer…</div>
+        <main id="detail-view">
+            <div class="detail-copy">
+                <p class="eyebrow">SELECTED SYSTEM</p>
+                <h2 id="detail-title">GAME BOY COLOR</h2>
+                <p id="detail-subtitle">1998 · COLOR IN YOUR HANDS</p>
+                <div class="detail-rule"></div>
+                <p class="detail-message">游戏列表将在下一阶段接入</p>
+            </div>
+            <div class="detail-art-frame">
+                <img id="detail-image" src="icons/gbc-atomic-purple-simple.png"/>
+            </div>
+        </main>
+
+        <footer id="home-footer" class="control-bar">
+            <div class="control-hint">
+                <span class="keycap keycap-wide">←　→</span>
+                <span>切换机型</span>
+            </div>
+            <div class="control-hint primary-action">
+                <span class="keycap keycap-round">A</span>
+                <span>进入游戏库</span>
+            </div>
+            <div class="control-hint secondary-action">
+                <span class="keycap keycap-round keycap-muted">B</span>
+                <span>退出</span>
+            </div>
+        </footer>
+
+        <footer id="detail-footer" class="control-bar">
+            <div class="control-hint">
+                <span class="keycap keycap-round">B</span>
+                <span>返回选择机型</span>
+            </div>
+            <div class="detail-status">游戏库占位页面</div>
         </footer>
     </div>
 </body>

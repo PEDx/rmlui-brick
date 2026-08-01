@@ -85,35 +85,40 @@ Brick 的 1024×768 对角线正好是 1280 像素。若面板为精确的 3.2 �
 - 相对 Android `mdpi = 160 dpi`，大约是 `2.5x`；
 - 不能仅凭 PPI 判断苹果式 `2x/3x`，因为它还取决于设备采用的逻辑分辨率。
 
-RmlUi 不会自动读取 PPI。当前原型未调用
-`Context::SetDensityIndependentPixelRatio()`，因此默认 `1dp = 1px`。在
-405 PPI 的 3.2 英寸屏幕上，`20px` 文字的实际高度只有约 1.25 mm，确实偏小。
+RmlUi 不会自动读取 PPI。本项目只面向固定的 1024×768 Brick，因此原型显式将
+`Context::SetDensityIndependentPixelRatio()` 设为 `1.0`。此时 Figma、RCSS 和
+屏幕物理像素一一对应。高 PPI 不会妨碍使用 `px`，但字号和控件尺寸必须按 3.2
+英寸实机设计；例如未经放大的 `20px` 文字实际高度只有约 1.25 mm，确实偏小。
 
 建议保持 RmlUi 和 SDL 使用 1024×768 原生像素进行清晰渲染，同时先设置：
 
 ```cpp
-context->SetDensityIndependentPixelRatio(2.0f);
+context->SetDensityIndependentPixelRatio(1.0f);
 ```
 
-然后把界面主要尺寸改用 `dp`：
+正式界面主要尺寸直接使用物理 `px`：
 
 ```css
-body       { font-size: 18dp; }  /* 36 个物理像素 */
-.caption   { font-size: 14dp; }  /* 28 个物理像素 */
-.title     { font-size: 28dp; }  /* 56 个物理像素 */
-.game-row  { height: 52dp; }     /* 104 个物理像素 */
+body       { font-size: 48px; }
+.caption   { font-size: 36px; }
+.title     { font-size: 72px; }
+.game-row  { height: 132px; }
 .hairline  { border: 1px #33405a; } /* 保留 1 像素细线 */
 ```
 
-`dp_ratio = 2` 相当于按 512×384 的逻辑尺寸设计，但最终仍在 1024×768 上生成
-和绘制字体，不会像把低分辨率画面整体放大那样模糊。若实机仍偏小，可以试
-`2.25` 或 `2.5`；`2.5` 对应约 410×307 的逻辑工作区，更接近手机密度，但
-一屏能容纳的内容会更少。
+`dp_ratio = 1` 的逻辑尺寸和物理尺寸都是 1024×768。Figma 使用 1024×768 Frame
+并按 1× 导出，坐标和尺寸可以直接进入 RCSS，不存在 1024 无法整除 3 的问题。
+需要测试其他视觉密度时仍可通过 `--dp-ratio 2.5` 或 `--dp-ratio 3` 临时覆盖，
+但这时以物理 `px` 编写的布局不会跟随倍率变化。
+
+如果将来重新使用 `dp`，`2.5` 是 Android 400dpi 中间密度对应的比例。RmlUi
+不会先生成低分辨率位图再整体拉伸，而是将布局换算到原生像素；少数落在半像素
+位置的边缘会由渲染器抗锯齿或取整。
 
 建议的单位分工：
 
-- 字号、控件高度、padding、gap、圆角使用 `dp`；
-- 发丝边框和需要对齐物理像素的细节使用 `px`；
+- 字号、控件高度、padding、gap、圆角使用 `px`；
+- 发丝边框和需要对齐物理像素的细节同样使用 `px`；
 - 容器宽高和两栏比例使用 `%` 或 Flexbox；
 - `vw`、`vh` 只用于确实需要跟随整个屏幕的尺寸。
 
