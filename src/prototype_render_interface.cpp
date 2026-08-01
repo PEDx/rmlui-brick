@@ -4,8 +4,6 @@
 #include <RmlUi/Core/Log.h>
 #include <SDL_image.h>
 
-#include <memory>
-
 PrototypeRenderInterface::PrototypeRenderInterface(SDL_Renderer* renderer) : renderer(renderer)
 {
     premultiplied_alpha = SDL_ComposeCustomBlendMode(
@@ -53,7 +51,24 @@ Rml::CompiledGeometryHandle PrototypeRenderInterface::CompileGeometry(
     Rml::Span<const Rml::Vertex> vertices,
     Rml::Span<const int> indices)
 {
-    return reinterpret_cast<Rml::CompiledGeometryHandle>(new GeometryView{vertices, indices});
+    auto* geometry = new GeometryView;
+    geometry->vertices.resize(vertices.size());
+    for (size_t i = 0; i < vertices.size(); ++i) {
+        const Rml::Vertex& source = vertices[i];
+        geometry->vertices[i] = {
+            {source.position.x, source.position.y},
+            {
+                source.colour.red,
+                source.colour.green,
+                source.colour.blue,
+                source.colour.alpha,
+            },
+            {source.tex_coord.x, source.tex_coord.y},
+        };
+    }
+    if (!indices.empty())
+        geometry->indices.assign(indices.data(), indices.data() + indices.size());
+    return reinterpret_cast<Rml::CompiledGeometryHandle>(geometry);
 }
 
 void PrototypeRenderInterface::ReleaseGeometry(Rml::CompiledGeometryHandle geometry)
@@ -68,29 +83,24 @@ void PrototypeRenderInterface::RenderGeometry(
 {
     const GeometryView* geometry = reinterpret_cast<const GeometryView*>(handle);
     const size_t vertex_count = geometry->vertices.size();
-    std::unique_ptr<SDL_Vertex[]> vertices(new SDL_Vertex[vertex_count]);
+    const SDL_Vertex* vertices = geometry->vertices.data();
 
-    for (size_t i = 0; i < vertex_count; ++i) {
-        const Rml::Vertex& source = geometry->vertices[i];
-        vertices[i].position = {
-            source.position.x + translation.x,
-            source.position.y + translation.y,
-        };
-        vertices[i].color = {
-            source.colour.red,
-            source.colour.green,
-            source.colour.blue,
-            source.colour.alpha,
-        };
-        vertices[i].tex_coord = {source.tex_coord.x, source.tex_coord.y};
+    if (translation.x != 0.0f || translation.y != 0.0f) {
+        translated_vertices.resize(vertex_count);
+        for (size_t i = 0; i < vertex_count; ++i) {
+            translated_vertices[i] = geometry->vertices[i];
+            translated_vertices[i].position.x += translation.x;
+            translated_vertices[i].position.y += translation.y;
+        }
+        vertices = translated_vertices.data();
     }
 
     const int result = SDL_RenderGeometry(
         renderer,
         reinterpret_cast<SDL_Texture*>(texture),
-        vertices.get(),
+        vertices,
         static_cast<int>(vertex_count),
-        geometry->indices.data(),
+        geometry->indices.empty() ? nullptr : geometry->indices.data(),
         static_cast<int>(geometry->indices.size()));
 
     if (result != 0 && !render_error_reported) {

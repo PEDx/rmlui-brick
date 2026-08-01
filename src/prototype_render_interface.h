@@ -3,6 +3,8 @@
 #include <RmlUi/Core/RenderInterface.h>
 #include <SDL.h>
 
+#include <vector>
+
 class PrototypeRenderInterface final : public Rml::RenderInterface {
 public:
     explicit PrototypeRenderInterface(SDL_Renderer* renderer);
@@ -35,8 +37,8 @@ public:
 
 private:
     struct GeometryView {
-        Rml::Span<const Rml::Vertex> vertices;
-        Rml::Span<const int> indices;
+        std::vector<SDL_Vertex> vertices;
+        std::vector<int> indices;
     };
 
     SDL_Renderer* renderer = nullptr;
@@ -46,4 +48,5 @@ private:
     bool healthy = true;
     bool render_error_reported = false;
     Rml::String diagnostics;
+    std::vector<SDL_Vertex> translated_vertices;
 };

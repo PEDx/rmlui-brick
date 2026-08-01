@@ -6,6 +6,7 @@
 #include <SDL.h>
 #include <SDL_image.h>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdio>
@@ -19,6 +20,11 @@ namespace {
 
 constexpr int kWidth = 1024;
 constexpr int kHeight = 768;
+constexpr Uint64 kTransitionMilliseconds = 220;
+constexpr Uint64 kIdlePollMilliseconds = 16;
+constexpr Uint64 kBatteryPollMilliseconds = 60000;
+constexpr Uint64 kFrameLogMilliseconds = 60000;
+constexpr Uint64 kScreenshotDelayMilliseconds = 1250;
 
 struct ModelInfo {
     const char* id;
@@ -101,8 +107,17 @@ int ReadBatteryPercent()
     return -1;
 }
 
-void UpdateDeviceStatus(Rml::ElementDocument* document)
+struct DeviceStatusState {
+    std::string clock;
+    int battery = -2;
+};
+
+bool UpdateDeviceStatus(
+    Rml::ElementDocument* document,
+    DeviceStatusState& state,
+    bool update_battery)
 {
+    bool changed = false;
     const std::time_t now = std::time(nullptr);
     std::tm local_time = {};
 #if defined(_WIN32)
@@ -112,37 +127,50 @@ void UpdateDeviceStatus(Rml::ElementDocument* document)
 #endif
     char clock[16] = {};
     std::strftime(clock, sizeof(clock), "%H:%M", &local_time);
-    SetText(document, "clock", clock);
-
-    const int battery = ReadBatteryPercent();
-    if (battery >= 0) {
-        SetText(document, "battery-text", Rml::CreateString("%d%%", battery));
-        if (Rml::Element* fill = document->GetElementById("battery-fill"))
-            fill->SetProperty("width", Rml::CreateString("%d%%", battery));
-    } else {
-        SetText(document, "battery-text", "--%");
-        if (Rml::Element* fill = document->GetElementById("battery-fill"))
-            fill->SetProperty("width", "0%");
+    if (state.clock != clock) {
+        state.clock = clock;
+        SetText(document, "clock", clock);
+        changed = true;
     }
+
+    if (update_battery) {
+        const int battery = ReadBatteryPercent();
+        if (state.battery != battery) {
+            state.battery = battery;
+            if (battery >= 0) {
+                SetText(document, "battery-text", Rml::CreateString("%d%%", battery));
+                if (Rml::Element* fill = document->GetElementById("battery-fill"))
+                    fill->SetProperty("width", Rml::CreateString("%d%%", battery));
+            } else {
+                SetText(document, "battery-text", "--%");
+                if (Rml::Element* fill = document->GetElementById("battery-fill"))
+                    fill->SetProperty("width", "0%");
+            }
+            changed = true;
+        }
+    }
+
+    return changed;
 }
 
 class DesktopController {
 public:
     explicit DesktopController(Rml::ElementDocument* document) : document(document) { UpdateCarousel(); }
 
-    void Move(int delta)
+    bool Move(int delta)
     {
         if (detail_visible)
-            return;
+            return false;
         const int count = static_cast<int>(kModels.size());
         selected = (selected + delta + count) % count;
         UpdateCarousel();
+        return true;
     }
 
-    void Activate()
+    bool Activate()
     {
         if (detail_visible)
-            return;
+            return false;
 
         const ModelInfo& model = kModels[selected];
         SetText(document, "detail-title", model.title);
@@ -154,6 +182,7 @@ public:
         SetDisplay("detail-view", "flex");
         SetDisplay("detail-footer", "flex");
         detail_visible = true;
+        return true;
     }
 
     bool Back()
@@ -239,15 +268,36 @@ bool SaveScreenshot(SDL_Renderer* renderer, const std::string& path)
 bool HandleControllerButton(Uint8 button, bool& running, DesktopController& desktop)
 {
     switch (button) {
-    case SDL_CONTROLLER_BUTTON_DPAD_LEFT: desktop.Move(-1); return true;
-    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: desktop.Move(1); return true;
-    case SDL_CONTROLLER_BUTTON_A: desktop.Activate(); return true;
+    case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return desktop.Move(-1);
+    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return desktop.Move(1);
+    case SDL_CONTROLLER_BUTTON_A: return desktop.Activate();
     case SDL_CONTROLLER_BUTTON_B:
-        if (!desktop.Back())
-            running = false;
-        return true;
+        if (desktop.Back())
+            return true;
+        running = false;
+        return false;
     default: return false;
     }
+}
+
+Uint64 MillisecondsToTicks(Uint64 milliseconds, Uint64 frequency)
+{
+    return milliseconds * frequency / 1000;
+}
+
+Uint64 MillisecondsUntilNextMinute()
+{
+    const std::time_t now = std::time(nullptr);
+    const int seconds_into_minute = static_cast<int>((now % 60 + 60) % 60);
+    return static_cast<Uint64>(60 - seconds_into_minute) * 1000;
+}
+
+int MillisecondsUntil(Uint64 now, Uint64 deadline, Uint64 frequency)
+{
+    if (now >= deadline)
+        return 0;
+    const Uint64 ticks = deadline - now;
+    return static_cast<int>((ticks * 1000 + frequency - 1) / frequency);
 }
 
 } // namespace
@@ -319,6 +369,7 @@ int main(int argc, char** argv)
     Rml::ElementDocument* document = nullptr;
     SDL_GameController* controller = nullptr;
     SDL_Joystick* joystick = nullptr;
+    DeviceStatusState device_status;
 
     if (!Rml::Initialise()) {
         std::fprintf(stderr, "[fatal] RmlUi initialisation failed\n");
@@ -352,7 +403,7 @@ int main(int argc, char** argv)
         goto shutdown_rmlui;
     }
     document->Show();
-    UpdateDeviceStatus(document);
+    UpdateDeviceStatus(document, device_status, true);
     std::fprintf(stderr, "[render] %s\n", render_interface.GetDiagnostics().c_str());
 
     for (int index = 0; index < SDL_NumJoysticks(); ++index) {
@@ -376,101 +427,181 @@ int main(int argc, char** argv)
         bool running = true;
         bool axis_left = false;
         bool axis_right = false;
+        bool dirty = true;
         Uint64 frame_count = 0;
-        Uint64 total_frames = 0;
-        bool screenshot_saved = false;
-        Uint64 fps_frame_start = SDL_GetPerformanceCounter();
-        Uint64 status_update_start = fps_frame_start;
-        const Uint64 app_start = fps_frame_start;
+        bool screenshot_pending = !options.screenshot.empty();
+        const Uint64 app_start = SDL_GetPerformanceCounter();
         const Uint64 frequency = SDL_GetPerformanceFrequency();
+        const Uint64 transition_ticks = MillisecondsToTicks(kTransitionMilliseconds, frequency);
+        const Uint64 battery_poll_ticks = MillisecondsToTicks(kBatteryPollMilliseconds, frequency);
+        const Uint64 frame_log_ticks = MillisecondsToTicks(kFrameLogMilliseconds, frequency);
+        Uint64 animate_until = 0;
+        Uint64 next_clock_poll = app_start + MillisecondsToTicks(MillisecondsUntilNextMinute(), frequency);
+        Uint64 next_battery_poll = app_start + battery_poll_ticks;
+        Uint64 next_frame_log = app_start + frame_log_ticks;
+        Uint64 frame_log_start = app_start;
+        const Uint64 screenshot_at = app_start + MillisecondsToTicks(kScreenshotDelayMilliseconds, frequency);
+        const Uint64 exit_at = options.exit_after_seconds > 0
+            ? app_start + static_cast<Uint64>(options.exit_after_seconds) * frequency
+            : 0;
 
-        while (running) {
-            SDL_Event event;
-            while (SDL_PollEvent(&event)) {
-                switch (event.type) {
-                case SDL_QUIT: running = false; break;
-                case SDL_KEYDOWN:
-                    if (event.key.repeat)
-                        break;
-                    if (event.key.keysym.sym == SDLK_LEFT)
-                        desktop.Move(-1);
-                    else if (event.key.keysym.sym == SDLK_RIGHT)
-                        desktop.Move(1);
-                    else if (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_SPACE)
-                        desktop.Activate();
-                    else if (event.key.keysym.sym == SDLK_ESCAPE || event.key.keysym.sym == SDLK_BACKSPACE) {
-                        if (!desktop.Back())
-                            running = false;
-                    } else if (event.key.keysym.sym == SDLK_q)
-                            running = false;
-                    else if (event.key.keysym.sym == SDLK_F8)
-                        Rml::Debugger::SetVisible(!Rml::Debugger::IsVisible());
+        auto process_event = [&](const SDL_Event& event) {
+            bool changed = false;
+            switch (event.type) {
+            case SDL_QUIT: running = false; break;
+            case SDL_WINDOWEVENT:
+                if (event.window.event == SDL_WINDOWEVENT_EXPOSED)
+                    changed = true;
+                break;
+            case SDL_KEYDOWN:
+                if (event.key.repeat)
                     break;
-                case SDL_CONTROLLERBUTTONDOWN:
-                    std::fprintf(stderr, "[input] controller button=%u\n", event.cbutton.button);
-                    HandleControllerButton(event.cbutton.button, running, desktop);
-                    break;
-                case SDL_JOYBUTTONDOWN:
-                    std::fprintf(stderr, "[input] joystick button=%u\n", event.jbutton.button);
-                    if (!controller) {
-                        if (event.jbutton.button == 0)
-                            desktop.Activate();
-                        else if (event.jbutton.button == 1 && !desktop.Back())
-                                running = false;
-                    }
-                    break;
-                case SDL_JOYHATMOTION:
-                    std::fprintf(stderr, "[input] hat=%u value=%u\n", event.jhat.hat, event.jhat.value);
-                    if (!controller) {
-                        if (event.jhat.value & SDL_HAT_LEFT)
-                            desktop.Move(-1);
-                        else if (event.jhat.value & SDL_HAT_RIGHT)
-                            desktop.Move(1);
-                    }
-                    break;
-                case SDL_JOYAXISMOTION:
-                    if (!controller && event.jaxis.axis == 0) {
-                        const bool new_left = event.jaxis.value < -16000;
-                        const bool new_right = event.jaxis.value > 16000;
-                        if (new_left && !axis_left)
-                            desktop.Move(-1);
-                        if (new_right && !axis_right)
-                            desktop.Move(1);
-                        axis_left = new_left;
-                        axis_right = new_right;
-                    }
-                    break;
-                default: break;
+                if (event.key.keysym.sym == SDLK_LEFT)
+                    changed = desktop.Move(-1);
+                else if (event.key.keysym.sym == SDLK_RIGHT)
+                    changed = desktop.Move(1);
+                else if (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_SPACE)
+                    changed = desktop.Activate();
+                else if (event.key.keysym.sym == SDLK_ESCAPE || event.key.keysym.sym == SDLK_BACKSPACE) {
+                    changed = desktop.Back();
+                    if (!changed)
+                        running = false;
+                } else if (event.key.keysym.sym == SDLK_q) {
+                    running = false;
+                } else if (event.key.keysym.sym == SDLK_F8) {
+                    Rml::Debugger::SetVisible(!Rml::Debugger::IsVisible());
+                    changed = true;
                 }
+                break;
+            case SDL_CONTROLLERBUTTONDOWN:
+                std::fprintf(stderr, "[input] controller button=%u\n", event.cbutton.button);
+                changed = HandleControllerButton(event.cbutton.button, running, desktop);
+                break;
+            case SDL_JOYBUTTONDOWN:
+                std::fprintf(stderr, "[input] joystick button=%u\n", event.jbutton.button);
+                if (!controller) {
+                    if (event.jbutton.button == 0) {
+                        changed = desktop.Activate();
+                    } else if (event.jbutton.button == 1) {
+                        changed = desktop.Back();
+                        if (!changed)
+                            running = false;
+                    }
+                }
+                break;
+            case SDL_JOYHATMOTION:
+                std::fprintf(stderr, "[input] hat=%u value=%u\n", event.jhat.hat, event.jhat.value);
+                if (!controller) {
+                    if (event.jhat.value & SDL_HAT_LEFT)
+                        changed = desktop.Move(-1);
+                    else if (event.jhat.value & SDL_HAT_RIGHT)
+                        changed = desktop.Move(1);
+                }
+                break;
+            case SDL_JOYAXISMOTION:
+                if (!controller && event.jaxis.axis == 0) {
+                    const bool new_left = event.jaxis.value < -16000;
+                    const bool new_right = event.jaxis.value > 16000;
+                    if (new_left && !axis_left)
+                        changed = desktop.Move(-1);
+                    if (new_right && !axis_right)
+                        changed = desktop.Move(1) || changed;
+                    axis_left = new_left;
+                    axis_right = new_right;
+                }
+                break;
+            default: break;
             }
 
+            if (changed) {
+                dirty = true;
+                animate_until = SDL_GetPerformanceCounter() + transition_ticks;
+            }
+        };
+
+        while (running) {
+            Uint64 now = SDL_GetPerformanceCounter();
+
+            if (now >= next_clock_poll) {
+                dirty = UpdateDeviceStatus(document, device_status, false) || dirty;
+                next_clock_poll = now + MillisecondsToTicks(MillisecondsUntilNextMinute(), frequency);
+            }
+            if (now >= next_battery_poll) {
+                dirty = UpdateDeviceStatus(document, device_status, true) || dirty;
+                next_battery_poll = now + battery_poll_ticks;
+            }
+            if (now >= next_frame_log) {
+                const double sample_seconds = static_cast<double>(now - frame_log_start) / frequency;
+                const double rendered_fps = static_cast<double>(frame_count) / sample_seconds;
+                std::fprintf(
+                    stderr,
+                    "[frame] rendered=%.1f FPS mode=%s renderer_ok=%s\n",
+                    rendered_fps,
+                    now < animate_until ? "animated" : "idle",
+                    render_interface.IsHealthy() ? "yes" : "no");
+                frame_count = 0;
+                frame_log_start = now;
+                next_frame_log = now + frame_log_ticks;
+            }
+            if (screenshot_pending && now >= screenshot_at)
+                dirty = true;
+            if (exit_at != 0 && now >= exit_at) {
+                running = false;
+                break;
+            }
+
+            const bool animating = now < animate_until;
+            if (!dirty && !animating) {
+                int wait_milliseconds = MillisecondsUntil(now, next_clock_poll, frequency);
+                wait_milliseconds = std::min(
+                    wait_milliseconds,
+                    MillisecondsUntil(now, next_battery_poll, frequency));
+                wait_milliseconds = std::min(
+                    wait_milliseconds,
+                    MillisecondsUntil(now, next_frame_log, frequency));
+                if (screenshot_pending) {
+                    wait_milliseconds = std::min(
+                        wait_milliseconds,
+                        MillisecondsUntil(now, screenshot_at, frequency));
+                }
+                if (exit_at != 0) {
+                    wait_milliseconds = std::min(
+                        wait_milliseconds,
+                        MillisecondsUntil(now, exit_at, frequency));
+                }
+
+                wait_milliseconds = std::min(
+                    wait_milliseconds,
+                    static_cast<int>(kIdlePollMilliseconds));
+                // Brick's SDL_WaitEventTimeout fallback pumps the controller at
+                // roughly 1 kHz. An explicit delay keeps input responsive while
+                // avoiding that idle CPU cost.
+                if (wait_milliseconds > 0)
+                    SDL_Delay(static_cast<Uint32>(wait_milliseconds));
+
+                SDL_Event event;
+                while (SDL_PollEvent(&event))
+                    process_event(event);
+                continue;
+            }
+
+            SDL_Event event;
+            while (SDL_PollEvent(&event))
+                process_event(event);
+            if (!running)
+                break;
+
+            now = SDL_GetPerformanceCounter();
             context->Update();
             render_interface.BeginFrame();
             context->Render();
-            if (!options.screenshot.empty() && !screenshot_saved && total_frames >= 75) {
-                screenshot_saved = SaveScreenshot(renderer, options.screenshot);
+            if (screenshot_pending && now >= screenshot_at) {
+                SaveScreenshot(renderer, options.screenshot);
+                screenshot_pending = false;
             }
             render_interface.EndFrame();
+            dirty = false;
             ++frame_count;
-            ++total_frames;
-
-            const Uint64 now = SDL_GetPerformanceCounter();
-            const double sample_seconds = static_cast<double>(now - fps_frame_start) / frequency;
-            if (sample_seconds >= 0.5) {
-                const double fps = static_cast<double>(frame_count) / sample_seconds;
-                std::fprintf(stderr, "[frame] %.1f FPS renderer_ok=%s\n", fps, render_interface.IsHealthy() ? "yes" : "no");
-                frame_count = 0;
-                fps_frame_start = now;
-            }
-
-            if (static_cast<double>(now - status_update_start) / frequency >= 1.0) {
-                UpdateDeviceStatus(document);
-                status_update_start = now;
-            }
-
-            if (options.exit_after_seconds > 0 &&
-                static_cast<double>(now - app_start) / frequency >= options.exit_after_seconds)
-                running = false;
         }
     }
 
