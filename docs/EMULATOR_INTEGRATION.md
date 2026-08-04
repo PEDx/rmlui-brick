@@ -4,15 +4,19 @@
 
 ## 实机现状
 
-当前设备没有安装可直接调用的模拟器：
+最初检查时设备没有安装可直接调用的模拟器：
 
 - 找不到 `retroarch`、`mGBA`、`gpSP` 等可执行程序；
 - 找不到 `*_libretro.so` core；
 - `opkg` 没有安装模拟器包；
-- SD 卡已有 `/mnt/SDCARD/Roms/GBA` 等目录，但当前 ROM 目录为空；
+- SD 卡已有 `/mnt/SDCARD/Roms/GBA` 等目录，但当时 ROM 目录为空；
 - SD 卡没有 MinUI 常用的 `/mnt/SDCARD/Emus` 目录。
 
-因此“有 GBA 目录”只表示目录结构准备好了，不表示 GBA 模拟器已经存在。
+当前已接入 MinUI `tg5040` 的 MinArch、Gambatte 和 gpSP：GB/GBC 使用 Gambatte，GBA 使用
+gpSP。运行时不存在时，游戏库仍可浏览，但 launcher 会拒绝启动并返回桌面。
+
+Brick 必须使用包含原生 1024×768 支持的较新 MinArch。实测 2024-12-13 版本仍按
+1280×720 创建视频区域，会导致游戏画面右移、菜单横向拉伸；2025-11-27 版本已正常识别 Brick。
 
 ## 推荐方案
 
@@ -52,23 +56,24 @@ launcher
 `/tmp/next` 的命令，运行模拟器，然后回到前端。
 
 目前原型自身是由原厂 `/tmp/cmd_to_run.sh` 机制启动的。原厂脚本会在原型退出后删除这个文件，
-所以不要让原型在运行期间覆盖同一个文件来接模拟器。我们的部署目录里应该增加自己的
-launcher 和专用请求文件，例如 `/tmp/rmlui-next`。
+所以不要让原型在运行期间覆盖同一个文件来接模拟器。项目 launcher 现已使用专用请求文件
+`/tmp/rmlui-next`，并用 `/tmp/rmlui-state` 恢复上次机型、目录和选中项。
 
 ## 建议目录
 
-模拟器程序和配置放在 SD 卡，方便升级或拔卡恢复：
+模拟器程序和配置沿用 MinUI 的 SD 卡布局，方便升级或拔卡恢复：
 
 ```text
 /mnt/SDCARD/
-├── Roms/GBA/
-├── Bios/GBA/
-├── Saves/GBA/
-└── Emus/tg5040/
-    ├── minarch.elf
-    ├── gpsp_libretro.so
-    ├── mgba_libretro.so        # 可选
-    └── GBA/
+├── Roms/{GB,GBC,GBA}/
+│   ├── <游戏文件>.<gb|gbc|gba|zip>
+│   └── .media/<游戏文件名（不含扩展名）>.png
+├── Bios/{GB,GBC,GBA}/
+├── Saves/{GB,GBC,GBA}/
+└── .system/tg5040/
+    ├── bin/minarch.elf
+    ├── cores/{gambatte,gpsp}_libretro.so
+    └── paks/Emus/{GB,GBC,GBA}.pak/
         ├── launch.sh
         └── default.cfg
 ```
@@ -91,30 +96,34 @@ minarch.elf "$CORES_PATH/gpsp_libretro.so" "$ROM"
 - CPU governor/频率和退出后的恢复策略；
 - Brick 的手柄映射、音量、电源键和休眠行为。
 
-C++ 层不要把 ROM 路径拼进 `system()` 字符串。应该把系统、core 和 ROM 存为结构化请求，
-由 launcher 校验路径后使用 `execv()` 参数数组执行，避免文件名中的空格、引号或 shell 字符
-导致启动失败或命令注入。
+C++ 层把系统和 ROM 写为两行结构化请求。launcher 只接受 GB/GBC/GBA、校验 ROM 必须位于
+`/mnt/SDCARD/Roms` 且扩展名匹配，并始终把路径作为单个引用参数传递给对应 `.pak/launch.sh`。
+
+## 退出安全
+
+MinArch 运行时同时管理 Brick 的显示、音频、输入和电源状态，不能用 `killall minarch.elf`
+或外部 `SIGTERM` 作为正常退出方式。游戏必须从 MinArch 自身菜单退出。项目 launcher 会在
+`desktop.mode` 为 `emulator` 时拒绝远程 `stop`，防止外部终止造成设备异常关机。
 
 ## 前端需要实现的接口
 
-第一阶段只需要四块：
+第一阶段接口已经完成：
 
-1. 扫描 `/mnt/SDCARD/Roms/GBA` 中的 `.gba`、`.zip` 文件；
-2. 在 RmlUi 滚动列表中显示整理后的游戏名；
-3. 按 A 时生成 `{ system: "GBA", rom: "绝对路径" }` 请求并正常退出桌面；
+1. 扫描 GB/GBC/GBA 目录中的 `.gb`、`.gbc`、`.gba`、`.zip` 文件；
+2. 在 RmlUi 封面 rail 中显示整理后的游戏名，并按相邻 `.media` 约定加载 PNG 封面；
+3. 按 A 时生成两行 `{ system, rom }` 请求并正常退出桌面；
 4. 模拟器退出后恢复前端状态。
 
-随后再增加封面、最近游戏、收藏、独立 core 选择、存档槽和自动恢复。
+后续再增加设备端封面刮削、最近游戏、收藏、独立 core 选择和存档槽管理。
 
-## 实机验证顺序
+## 实机验证状态
 
-1. 获取明确支持 `tg5040/aarch64` 的 MinArch 与 core；
-2. 用自制或公开授权的 GBA ROM 通过 SSH 单独启动；
-3. 验证画面比例、帧率、音频、方向键、A/B/L/R、存档；
-4. 配置清晰的退出组合键，确认退出后桌面能恢复；
-5. 最后再接入 RmlUi 游戏列表。
+1. GB、GBC、GBA 已分别通过 Gambatte/Gambatte/gpSP 启动；
+2. MinArch 正常退出后可以恢复 RmlUi 桌面与上次选择；
+3. launcher 会阻止在模拟器运行时从外部发送停止信号；
+4. 仍需持续回归更多游戏的画面比例、音频、按键和存档兼容性。
 
-在完成单 ROM 测试前，不应修改开机流程或替换原厂 MainUI。
+原厂 MainUI 和开机流程保持不变。测试运行时仅通过原厂交接脚本临时切换前端。
 
 ## 参考
 

@@ -1,49 +1,46 @@
 <rml>
 <head>
-    <title>Brick Handheld Library</title>
+    <title>Brick Game Library</title>
     <link type="text/rcss" href="main.rcss"/>
 </head>
 <body>
     <div id="screen">
         <header class="status-bar">
-            <div class="system-mark">
-                <span class="system-dot"></span>
-                <span>BRICK</span>
+            <div id="home-mark" class="page-mark">
+                <img class="page-icon" src="ui/home.png"/>
+            </div>
+            <div id="library-mark" class="library-breadcrumb">
+                <img class="page-icon" src="ui/folder.png"/>
+                <span class="breadcrumb-slash">/</span>
+                <span id="library-system">GAME BOY COLOR</span>
+                <span class="game-count"><span id="library-count" class="game-count-text">0 GAMES</span></span>
             </div>
             <div class="device-status">
+                <img class="status-icon" src="ui/bluetooth.png"/>
+                <img class="status-icon" src="ui/wifi.png"/>
+                <div class="battery-status">
+                    <div class="battery-shell"><span id="battery-fill"></span></div>
+                    <span id="battery-text">--%</span>
+                </div>
                 <span id="clock">--:--</span>
-                <span class="status-separator"></span>
-                <div class="battery-shell"><span id="battery-fill"></span></div>
-                <span id="battery-text">--%</span>
             </div>
         </header>
 
         <main id="home-view">
-            <div class="section-heading">
-                <p class="eyebrow">CHOOSE YOUR SYSTEM</p>
-                <h1 id="selected-title">GAME BOY COLOR</h1>
-                <p id="selected-subtitle" class="subtitle">1998 · COLOR IN YOUR HANDS</p>
-            </div>
-
             <div id="console-roll">
-                <div class="selection-backdrop"></div>
-
                 <button id="model-gb" class="model-card model-gb slot-left">
                     <img class="console-image" src="icons/gb-dmg-simple.png"/>
-                    <span class="model-short-name">GAME BOY</span>
+                    <img class="console-logo logo-gb" src="ui/logo-gb.png"/>
                 </button>
-
                 <button id="model-gbc" class="model-card model-gbc slot-center selected">
                     <img class="console-image" src="icons/gbc-atomic-purple-simple.png"/>
-                    <span class="model-short-name">GAME BOY COLOR</span>
+                    <img class="console-logo logo-gbc" src="ui/logo-gbc.png"/>
                 </button>
-
                 <button id="model-gba" class="model-card model-gba slot-right">
                     <img class="console-image" src="icons/gba-indigo-simple.png"/>
-                    <span class="model-short-name">GAME BOY ADVANCE</span>
+                    <img class="console-logo logo-gba" src="ui/logo-gba.png"/>
                 </button>
             </div>
-
             <div class="position-dots">
                 <span id="position-0" class="position-dot"></span>
                 <span id="position-1" class="position-dot active"></span>
@@ -51,40 +48,69 @@
             </div>
         </main>
 
-        <main id="detail-view">
-            <div class="detail-copy">
-                <p class="eyebrow">SELECTED SYSTEM</p>
-                <h2 id="detail-title">GAME BOY COLOR</h2>
-                <p id="detail-subtitle">1998 · COLOR IN YOUR HANDS</p>
-                <div class="detail-rule"></div>
-                <p class="detail-message">游戏列表将在下一阶段接入</p>
+        <main id="library-view">
+            <div id="game-rail">
+                <div id="game-card-0" class="game-card active">
+                    <div class="game-cover-frame"><img id="game-cover-0" class="game-cover" src="icons/gbc-atomic-purple-simple.png"/></div>
+                    <span id="game-label-0" class="game-label"></span>
+                </div>
+                <div id="game-card-1" class="game-card">
+                    <div class="game-cover-frame"><img id="game-cover-1" class="game-cover" src="icons/gbc-atomic-purple-simple.png"/></div>
+                    <span id="game-label-1" class="game-label"></span>
+                </div>
+                <div id="game-card-2" class="game-card">
+                    <div class="game-cover-frame"><img id="game-cover-2" class="game-cover" src="icons/gbc-atomic-purple-simple.png"/></div>
+                    <span id="game-label-2" class="game-label"></span>
+                </div>
+                <div id="game-card-3" class="game-card">
+                    <div class="game-cover-frame"><img id="game-cover-3" class="game-cover" src="icons/gbc-atomic-purple-simple.png"/></div>
+                    <span id="game-label-3" class="game-label"></span>
+                </div>
+                <div id="library-empty">
+                    <img src="ui/folder.png"/>
+                    <span>请把 ROM 放入对应的 GB、GBC 或 GBA 目录</span>
+                </div>
             </div>
-            <div class="detail-art-frame">
-                <img id="detail-image" src="icons/gbc-atomic-purple-simple.png"/>
+            <div class="game-information">
+                <div class="game-title-row">
+                    <h1 id="library-title">选择一个游戏</h1>
+                    <span id="library-position">0 / 0</span>
+                </div>
+                <div class="game-meta-row">
+                    <span id="library-message"></span>
+                    <span id="library-core">GAMBATTE · GAME BOY COLOR</span>
+                </div>
             </div>
         </main>
 
         <footer id="home-footer" class="control-bar">
-            <div class="control-hint">
-                <span class="keycap keycap-wide">←　→</span>
+            <div class="control-hint switch-hint">
+                <img class="dpad-hint" src="ui/dpad.png"/>
                 <span>切换机型</span>
             </div>
             <div class="control-hint primary-action">
-                <span class="keycap keycap-round">A</span>
+                <span class="keycap keycap-primary">A</span>
                 <span>进入游戏库</span>
             </div>
             <div class="control-hint secondary-action">
-                <span class="keycap keycap-round keycap-muted">B</span>
+                <span class="keycap keycap-muted">B</span>
                 <span>退出</span>
             </div>
         </footer>
 
-        <footer id="detail-footer" class="control-bar">
-            <div class="control-hint">
-                <span class="keycap keycap-round">B</span>
-                <span>返回选择机型</span>
+        <footer id="library-footer" class="control-bar">
+            <div class="control-hint switch-hint">
+                <img class="dpad-hint" src="ui/dpad.png"/>
+                <span>选择游戏</span>
             </div>
-            <div class="detail-status">游戏库占位页面</div>
+            <div class="control-hint primary-action">
+                <span class="keycap keycap-primary">A</span>
+                <span>开始游戏</span>
+            </div>
+            <div class="control-hint secondary-action">
+                <span class="keycap keycap-muted">B</span>
+                <span>返回</span>
+            </div>
         </footer>
     </div>
 </body>

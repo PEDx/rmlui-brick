@@ -45,6 +45,7 @@ if(NOT TARGET SDL2_image::SDL2_image)
 endif()
 
 add_executable(trimui-rmlui-prototype
+  src/game_catalog.cpp
   src/main.cpp
   src/prototype_render_interface.cpp
   src/prototype_system_interface.cpp

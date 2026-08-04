@@ -26,3 +26,18 @@ bool PrototypeSystemInterface::LogMessage(Rml::Log::Type type, const Rml::String
     std::fflush(stderr);
     return true;
 }
+
+void PrototypeSystemInterface::JoinPath(
+    Rml::String& translated_path,
+    const Rml::String& document_path,
+    const Rml::String& path)
+{
+    // RmlUi's default implementation strips the leading slash because many
+    // integrations use a virtual resource root. This frontend uses native
+    // filesystem paths for ROM-side artwork, so preserve absolute paths.
+    if (!path.empty() && path.front() == '/') {
+        translated_path = path;
+        return;
+    }
+    Rml::SystemInterface::JoinPath(translated_path, document_path, path);
+}

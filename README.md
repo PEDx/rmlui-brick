@@ -26,8 +26,12 @@ RML 可用 UI 元素、表单控件、滚动列表和掌机焦点联动，见
 - SDL2_image PNG 解码、透明图标和纹理上传工作正常；
 - 使用设备 `/usr/trimui/res/regular.ttf` 的阿里巴巴普惠体，中文显示正常；
 - 首页时间和 AXP2202 电池电量读取正常；
-- GB/GBC/GBA 横向机型 roll、选中放大和循环切换正常；
-- A 键进入机型页面，B 键返回；在首页按 B 可安全退出；
+- Home 已按 Figma `3:2` 实现 GB/GBC/GBA 横向机型 roll、选中放大和循环切换；
+- 游戏库已按 Figma `3:7` 实现封面 rail、游戏数量、当前选择和底部操作栏；
+- 可扫描 `(GB)`/`GB`、`(GBC)`/`GBC`、`(GBA)`/`GBA` ROM 目录及 `.gb`、`.gbc`、`.gba`、`.zip`；
+- 封面按 `Roms/<系统>/.media/<ROM 文件名（不含扩展名）>.png` 自动匹配，不需要修改代码；
+- A 键进入游戏库或启动游戏，B 键返回；在首页按 B 可安全退出；
+- GB/GBC 使用 Gambatte，GBA 使用 gpSP；MinArch 退出后恢复原系统和游戏选择；
 - SDL 将内置手柄识别为 `Xbox 360 Controller`；
 - 切换动画期间稳定约 60 FPS，静止后停止全屏重绘，仅保留 16 ms 输入轮询；
 - 时间只在分钟变化时刷新，电量每分钟检查一次，内容不变时不触发重绘；
@@ -86,6 +90,8 @@ RML 可用 UI 元素、表单控件、滚动列表和掌机焦点联动，见
 │   ├── package-brick.sh
 │   ├── run-brick.sh
 │   ├── run-macos.sh
+│   ├── stage-test-library.sh
+│   ├── test-library.tsv
 │   └── setup-toolchain.sh
 ├── docs/
 │   ├── images/desktop-v1.png
@@ -149,7 +155,8 @@ Brick 版本：
 退出方式：
 
 - 在掌机上按 `B`，程序正常退出，原厂 `MainUI` 自动恢复；
-- 界面无响应时，在开发机执行 `./scripts/run-brick.sh stop`；
+- 桌面界面无响应时，可在开发机执行 `./scripts/run-brick.sh stop`；
+- 游戏运行时必须从 MinArch 菜单正常退出；launcher 会拒绝远程 `stop`；
 - `./scripts/run-brick.sh status` 查看状态；
 - `./scripts/run-brick.sh logs` 查看最近 100 行日志。
 
@@ -169,6 +176,9 @@ cd /mnt/UDISK/trimui-dev/rmlui-prototype/current
 ```text
 --seconds N         N 秒后自动退出
 --screenshot FILE   稳定渲染后保存 BMP 截图
+--rom-root DIR      ROM 根目录；设备默认 /mnt/SDCARD/Roms
+--request FILE      UI 与 launcher 的结构化启动请求
+--state FILE        保存并恢复当前机型和 ROM 选择
 --renderer NAME     指定 SDL renderer；Brick 使用 opengles2
 --dp-ratio N        UI 密度倍率；默认 1.0，可在 0.5～4.0 间调试
 --fullscreen        1024×768 全屏
@@ -180,8 +190,8 @@ cd /mnt/UDISK/trimui-dev/rmlui-prototype/current
 
 ## 当前限制
 
-- 机型进入页目前是占位页面，尚未接入 ROM 扫描、封面和简介；
-- 尚未启动 MinArch/libretro core，也没有存档、退出和桌面恢复的完整游戏链路；
+- 封面需要预先放入 ROM 相邻的 `.media` 目录，尚未实现设备端在线刮削；
+- 尚未实现游戏简介、收藏和最近游玩时长；
 - 尚未接入网络、音量、亮度和休眠恢复状态；
 - 尚未实现自动降亮度、闲置关屏和完整的桌面电源管理策略；
 - 模拟器画面的整数缩放、LCD fragment shader 和机型 Overlay 尚未实现；
@@ -190,10 +200,9 @@ cd /mnt/UDISK/trimui-dev/rmlui-prototype/current
 
 ## 下一步
 
-1. 为 GB/GBC/GBA 建立 ROM 数据模型、目录扫描和游戏页面；
-2. 加载游戏封面、简介、收藏和最近游玩状态；
-3. 接入 MinArch 与 Gambatte、gpSP/mGBA core；
-4. 实现桌面退出、游戏运行、存档和返回桌面的完整链路；
-5. 接入整数缩放、LCD shader 和机型 Overlay；
-6. 验证原生 OSD、休眠和唤醒后的图形上下文恢复；
-7. 在核心功能稳定后完成降亮度、无线网络和 CPU 档位等续航优化。
+1. 完成更多 GB/GBC/GBA 游戏的存档与长时间运行回归；
+2. 加载游戏简介、收藏、最近游玩状态和设备端封面刮削；
+3. 为 GBA 增加 mGBA 兼容性 fallback；
+4. 接入整数缩放、LCD shader 和机型 Overlay；
+5. 验证原生 OSD、休眠和唤醒后的图形上下文恢复；
+6. 在核心功能稳定后完成降亮度、无线网络和 CPU 档位等续航优化。

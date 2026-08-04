@@ -1,3 +1,4 @@
+#include "game_catalog.h"
 #include "prototype_render_interface.h"
 #include "prototype_system_interface.h"
 
@@ -28,15 +29,13 @@ constexpr Uint64 kScreenshotDelayMilliseconds = 1250;
 
 struct ModelInfo {
     const char* id;
-    const char* title;
-    const char* subtitle;
-    const char* image;
+    GameSystem system;
 };
 
 constexpr std::array<ModelInfo, 3> kModels = {{
-    {"model-gb", "GAME BOY", "1989 · PLAY IT LOUD", "icons/gb-dmg-simple.png"},
-    {"model-gbc", "GAME BOY COLOR", "1998 · COLOR IN YOUR HANDS", "icons/gbc-atomic-purple-simple.png"},
-    {"model-gba", "GAME BOY ADVANCE", "2001 · ADVANCE YOUR PLAY", "icons/gba-indigo-simple.png"},
+    {"model-gb", GameSystem::GameBoy},
+    {"model-gbc", GameSystem::GameBoyColor},
+    {"model-gba", GameSystem::GameBoyAdvance},
 }};
 
 struct Options {
@@ -44,6 +43,9 @@ struct Options {
     std::string font;
     std::string renderer;
     std::string screenshot;
+    std::string rom_root = "/mnt/SDCARD/Roms";
+    std::string request = "/tmp/rmlui-next";
+    std::string state = "/tmp/rmlui-state";
     float dp_ratio = 1.0f;
     int exit_after_seconds = 0;
     bool fullscreen = false;
@@ -53,7 +55,7 @@ void PrintUsage(const char* program)
 {
     std::fprintf(
         stderr,
-        "Usage: %s --font FILE [--assets DIR] [--renderer NAME] [--dp-ratio N] [--fullscreen] [--seconds N] [--screenshot BMP]\n",
+        "Usage: %s --font FILE [--assets DIR] [--rom-root DIR] [--request FILE] [--state FILE] [--renderer NAME] [--dp-ratio N] [--fullscreen] [--seconds N] [--screenshot BMP]\n",
         program);
 }
 
@@ -71,6 +73,12 @@ bool ParseOptions(int argc, char** argv, Options& options)
             options.renderer = argv[++i];
         } else if (std::strcmp(argument, "--screenshot") == 0 && i + 1 < argc) {
             options.screenshot = argv[++i];
+        } else if (std::strcmp(argument, "--rom-root") == 0 && i + 1 < argc) {
+            options.rom_root = argv[++i];
+        } else if (std::strcmp(argument, "--request") == 0 && i + 1 < argc) {
+            options.request = argv[++i];
+        } else if (std::strcmp(argument, "--state") == 0 && i + 1 < argc) {
+            options.state = argv[++i];
         } else if (std::strcmp(argument, "--dp-ratio") == 0 && i + 1 < argc) {
             char* end = nullptr;
             options.dp_ratio = std::strtof(argv[++i], &end);
@@ -92,10 +100,26 @@ bool ParseOptions(int argc, char** argv, Options& options)
     return !options.font.empty();
 }
 
+Rml::String EscapeRml(const Rml::String& value)
+{
+    Rml::String escaped;
+    escaped.reserve(value.size());
+    for (char character : value) {
+        switch (character) {
+        case '&': escaped += "&amp;"; break;
+        case '<': escaped += "&lt;"; break;
+        case '>': escaped += "&gt;"; break;
+        case '"': escaped += "&quot;"; break;
+        default: escaped += character; break;
+        }
+    }
+    return escaped;
+}
+
 void SetText(Rml::ElementDocument* document, const char* id, const Rml::String& value)
 {
     if (Rml::Element* element = document->GetElementById(id))
-        element->SetInnerRML(value);
+        element->SetInnerRML(EscapeRml(value));
 }
 
 int ReadBatteryPercent()
@@ -155,83 +179,241 @@ bool UpdateDeviceStatus(
 
 class DesktopController {
 public:
-    explicit DesktopController(Rml::ElementDocument* document) : document(document) { UpdateCarousel(); }
+    DesktopController(Rml::ElementDocument* document, const Options& options)
+        : document(document), options(options)
+    {
+        UpdateCarousel();
+        RestoreState();
+    }
 
     bool Move(int delta)
     {
-        if (detail_visible)
+        if (view == View::Home) {
+            const int count = static_cast<int>(kModels.size());
+            selected_system = (selected_system + delta + count) % count;
+            UpdateCarousel();
+            return true;
+        }
+
+        if (games.empty())
             return false;
-        const int count = static_cast<int>(kModels.size());
-        selected = (selected + delta + count) % count;
-        UpdateCarousel();
+        const int count = static_cast<int>(games.size());
+        selected_game = static_cast<std::size_t>(
+            (static_cast<int>(selected_game) + delta + count) % count);
+        UpdateLibrary();
+        SaveState(games[selected_game].path);
         return true;
     }
 
     bool Activate()
     {
-        if (detail_visible)
+        if (view == View::Home) {
+            OpenLibrary();
+            return true;
+        }
+
+        if (games.empty())
             return false;
 
-        const ModelInfo& model = kModels[selected];
-        SetText(document, "detail-title", model.title);
-        SetText(document, "detail-subtitle", model.subtitle);
-        if (Rml::Element* image = document->GetElementById("detail-image"))
-            image->SetAttribute("src", model.image);
-        SetDisplay("home-view", "none");
-        SetDisplay("home-footer", "none");
-        SetDisplay("detail-view", "flex");
-        SetDisplay("detail-footer", "flex");
-        detail_visible = true;
+        std::string error;
+        if (!WriteLaunchRequest(
+                options.request,
+                kModels[selected_system].system,
+                games[selected_game].path,
+                error)) {
+            SetText(document, "library-message", error);
+            return true;
+        }
+
+        SaveState(games[selected_game].path);
+        std::fprintf(
+            stderr,
+            "[launch] system=%s rom=%s request=%s\n",
+            GetGameSystemInfo(kModels[selected_system].system).id,
+            games[selected_game].path.c_str(),
+            options.request.c_str());
+        exit_requested = true;
         return true;
     }
 
     bool Back()
     {
-        if (!detail_visible)
+        if (view != View::Library)
             return false;
 
-        SetDisplay("detail-view", "none");
-        SetDisplay("detail-footer", "none");
+        SetDisplay("library-view", "none");
+        SetDisplay("library-footer", "none");
+        SetDisplay("library-mark", "none");
         SetDisplay("home-view", "flex");
         SetDisplay("home-footer", "flex");
-        detail_visible = false;
+        SetDisplay("home-mark", "flex");
+        view = View::Home;
+        SaveState({});
         UpdateCarousel();
         return true;
     }
 
+    bool ExitRequested() const { return exit_requested; }
+
 private:
+    enum class View { Home, Library };
+
     void SetDisplay(const char* id, const char* value)
     {
         if (Rml::Element* element = document->GetElementById(id))
             element->SetProperty("display", value);
     }
 
+    void SetImage(const char* id, const std::string& source)
+    {
+        if (Rml::Element* image = document->GetElementById(id))
+            image->SetAttribute("src", source);
+    }
+
+    void OpenLibrary()
+    {
+        games = ScanGames(options.rom_root, kModels[selected_system].system);
+        selected_game = 0;
+        std::fprintf(
+            stderr,
+            "[catalog] system=%s root=%s games=%zu\n",
+            GetGameSystemInfo(kModels[selected_system].system).id,
+            options.rom_root.c_str(),
+            games.size());
+        SetDisplay("home-view", "none");
+        SetDisplay("home-footer", "none");
+        SetDisplay("home-mark", "none");
+        SetDisplay("library-view", "flex");
+        SetDisplay("library-footer", "flex");
+        SetDisplay("library-mark", "flex");
+        view = View::Library;
+        UpdateLibrary();
+        SaveState(games.empty() ? std::string() : games.front().path);
+    }
+
+    void UpdateLibrary()
+    {
+        const GameSystemInfo& system = GetGameSystemInfo(kModels[selected_system].system);
+        SetText(document, "library-system", system.title);
+        SetText(document, "library-count", Rml::CreateString("%zu GAMES", games.size()));
+        SetText(document, "library-core", Rml::CreateString("%s · %s", system.core_name, system.title));
+        SetText(document, "library-message", "");
+
+        if (games.empty()) {
+            SetDisplay("library-empty", "flex");
+            for (int slot = 0; slot < 4; ++slot)
+                SetDisplay(Rml::CreateString("game-card-%d", slot).c_str(), "none");
+            SetText(document, "library-title", "没有找到可运行的 ROM");
+            SetText(document, "library-position", "0 / 0");
+            return;
+        }
+
+        SetDisplay("library-empty", "none");
+        const std::size_t visible_count = std::min<std::size_t>(4, games.size());
+        std::size_t start = 0;
+        if (games.size() > visible_count && selected_game >= visible_count)
+            start = std::min(selected_game - 1, games.size() - visible_count);
+
+        for (int slot = 0; slot < 4; ++slot) {
+            const Rml::String card_id = Rml::CreateString("game-card-%d", slot);
+            Rml::Element* card = document->GetElementById(card_id);
+            const std::size_t game_index = start + static_cast<std::size_t>(slot);
+            if (!card || slot >= static_cast<int>(visible_count) || game_index >= games.size()) {
+                if (card)
+                    card->SetProperty("display", "none");
+                continue;
+            }
+
+            card->SetProperty("display", "block");
+            card->SetClass("active", game_index == selected_game);
+            card->SetClass("placeholder", games[game_index].cover.empty());
+            const std::string cover = games[game_index].cover.empty()
+                ? system.console_image
+                : games[game_index].cover;
+            SetImage(Rml::CreateString("game-cover-%d", slot).c_str(), cover);
+            SetText(
+                document,
+                Rml::CreateString("game-label-%d", slot).c_str(),
+                games[game_index].title);
+        }
+
+        SetText(document, "library-title", games[selected_game].title);
+        SetText(
+            document,
+            "library-position",
+            Rml::CreateString("%zu / %zu", selected_game + 1, games.size()));
+    }
+
+    void SaveState(const std::string& rom_path)
+    {
+        if (options.state.empty() || rom_path.find('\n') != std::string::npos)
+            return;
+        const std::string temporary = options.state + ".tmp";
+        std::ofstream stream(temporary, std::ios::binary | std::ios::trunc);
+        if (!stream)
+            return;
+        stream << GetGameSystemInfo(kModels[selected_system].system).id << '\n' << rom_path << '\n';
+        stream.close();
+        if (stream)
+            std::rename(temporary.c_str(), options.state.c_str());
+    }
+
+    void RestoreState()
+    {
+        std::ifstream stream(options.state, std::ios::binary);
+        std::string system_id;
+        std::string rom_path;
+        if (!std::getline(stream, system_id) || !std::getline(stream, rom_path))
+            return;
+
+        for (std::size_t index = 0; index < kModels.size(); ++index) {
+            if (system_id == GetGameSystemInfo(kModels[index].system).id) {
+                selected_system = static_cast<int>(index);
+                break;
+            }
+        }
+        UpdateCarousel();
+        if (rom_path.empty())
+            return;
+
+        OpenLibrary();
+        const auto match = std::find_if(games.begin(), games.end(), [&](const GameInfo& game) {
+            return game.path == rom_path;
+        });
+        if (match != games.end())
+            selected_game = static_cast<std::size_t>(match - games.begin());
+        UpdateLibrary();
+        if (!games.empty())
+            SaveState(games[selected_game].path);
+    }
+
     void UpdateCarousel()
     {
         const int count = static_cast<int>(kModels.size());
-        const int left = (selected + count - 1) % count;
-        const int right = (selected + 1) % count;
+        const int left = (selected_system + count - 1) % count;
+        const int right = (selected_system + 1) % count;
 
         for (int index = 0; index < count; ++index) {
             if (Rml::Element* card = document->GetElementById(kModels[index].id)) {
                 card->SetClass("slot-left", index == left);
-                card->SetClass("slot-center", index == selected);
+                card->SetClass("slot-center", index == selected_system);
                 card->SetClass("slot-right", index == right);
-                card->SetClass("selected", index == selected);
-                if (index == selected)
+                card->SetClass("selected", index == selected_system);
+                if (index == selected_system)
                     card->Focus(true);
             }
             if (Rml::Element* dot = document->GetElementById(Rml::CreateString("position-%d", index)))
-                dot->SetClass("active", index == selected);
+                dot->SetClass("active", index == selected_system);
         }
-
-        SetText(document, "selected-title", kModels[selected].title);
-        SetText(document, "selected-subtitle", kModels[selected].subtitle);
     }
 
     Rml::ElementDocument* document = nullptr;
-    int selected = 1;
-    bool detail_visible = false;
+    const Options& options;
+    std::vector<GameInfo> games;
+    int selected_system = 1;
+    std::size_t selected_game = 0;
+    View view = View::Home;
+    bool exit_requested = false;
 };
 
 void LogJoystick(SDL_Joystick* joystick)
@@ -423,7 +605,7 @@ int main(int argc, char** argv)
     LogJoystick(joystick);
 
     {
-        DesktopController desktop(document);
+        DesktopController desktop(document, options);
         bool running = true;
         bool axis_left = false;
         bool axis_right = false;
@@ -512,6 +694,9 @@ int main(int argc, char** argv)
                 break;
             default: break;
             }
+
+            if (desktop.ExitRequested())
+                running = false;
 
             if (changed) {
                 dirty = true;
