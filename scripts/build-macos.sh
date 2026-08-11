@@ -2,13 +2,13 @@
 set -eu
 
 PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-RMLUI_SOURCE=${RMLUI_SOURCE:-/tmp/RmlUi-6.2}
+RMLUI_SOURCE=${RMLUI_SOURCE:-"$PROJECT_DIR/.deps/RmlUi-6.2"}
 BUILD_DIR=${BUILD_DIR:-"$PROJECT_DIR/build/macos"}
 MACOS_SDK=$(xcrun --sdk macosx --show-sdk-path)
 
 if [ ! -f "$RMLUI_SOURCE/CMakeLists.txt" ]; then
     echo "RmlUi 6.2 source not found at: $RMLUI_SOURCE" >&2
-    echo "Clone it with: git clone --depth 1 --branch 6.2 https://github.com/mikke89/RmlUi.git $RMLUI_SOURCE" >&2
+    echo "Clone it with: git clone --depth 1 --branch 6.2 https://github.com/mikke89/RmlUi.git '$PROJECT_DIR/.deps/RmlUi-6.2'" >&2
     exit 1
 fi
 

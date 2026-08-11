@@ -18,12 +18,28 @@ gpSP。运行时不存在时，游戏库仍可浏览，但 launcher 会拒绝启
 Brick 必须使用包含原生 1024×768 支持的较新 MinArch。实测 2024-12-13 版本仍按
 1280×720 创建视频区域，会导致游戏画面右移、菜单横向拉伸；2025-11-27 版本已正常识别 Brick。
 
+GBA 原生 240×160 画面采用 4 倍整数缩放，输出到 `(32,64,960,640)`。Brick 的 GBA MinArch
+使用 GLES2 fragment shader，根据 `gl_FragCoord` 相对该 viewport 左上角的位置生成 4×4 LCD
+aperture；中心亮度为 `1.0`、边缘为 `0.9`、四角为 `0.8`。它不依赖平铺网格纹理，只在精确
+命中原生 4 倍 viewport 时启用，并在游戏画面之后继续合成已有的 `gba-brick-mask.png` 颗粒与
+机型遮罩。MiniArch/core 的颜色矫正流程未改动。
+
 ## 推荐方案
 
 第一版建议复用 MinUI 在 `tg5040` 平台已经验证过的组合：
 
 ```text
 minarch.elf + gpsp_libretro.so
+
+SFC / SNES 使用：
+
+```text
+minarch.elf + snes9x2005_plus_libretro.so
+```
+
+Brick 使用 256×224 的 3 倍整数缩放（768×672，坐标 128,48）。只有核心输出正好匹配该游戏
+画面时才叠加 `sfc-brick-mask.png` 和 `sfc-crt-3x.png`；MinArch 菜单以及高分辨率模式不会套用
+遮罩，避免菜单拉伸或错位。
 ```
 
 gpSP 是 MinUI 给 GBA 使用的默认 core，目标偏向低功耗和流畅运行。需要更高兼容性时，可以把
@@ -98,6 +114,8 @@ minarch.elf "$CORES_PATH/gpsp_libretro.so" "$ROM"
 
 C++ 层把系统和 ROM 写为两行结构化请求。launcher 只接受 GB/GBC/GBA、校验 ROM 必须位于
 `/mnt/SDCARD/Roms` 且扩展名匹配，并始终把路径作为单个引用参数传递给对应 `.pak/launch.sh`。
+当前支持 GB (`.gb`)、GBC (`.gbc`)、GBA (`.gba`) 和 SFC (`.sfc`/`.smc`)；各平台也允许
+MinUI 原有的 `.zip` 包装格式。
 
 ## 退出安全
 
@@ -121,7 +139,8 @@ MinArch 运行时同时管理 Brick 的显示、音频、输入和电源状态�
 1. GB、GBC、GBA 已分别通过 Gambatte/Gambatte/gpSP 启动；
 2. MinArch 正常退出后可以恢复 RmlUi 桌面与上次选择；
 3. launcher 会阻止在模拟器运行时从外部发送停止信号；
-4. 仍需持续回归更多游戏的画面比例、音频、按键和存档兼容性。
+4. GBA GLES2 aperture 已在真机完成 context、shader 编译和持续运行检查；
+5. 仍需持续回归更多游戏的画面比例、音频、按键和存档兼容性。
 
 原厂 MainUI 和开机流程保持不变。测试运行时仅通过原厂交接脚本临时切换前端。
 

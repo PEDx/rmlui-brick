@@ -2,7 +2,7 @@
 set -eu
 
 PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-RMLUI_SOURCE=${RMLUI_SOURCE:-/tmp/RmlUi-6.2}
+RMLUI_SOURCE=${RMLUI_SOURCE:-"$PROJECT_DIR/.deps/RmlUi-6.2"}
 BUILD_DIR=${BUILD_DIR:-"$PROJECT_DIR/build/brick-zig"}
 
 if [ ! -f "$RMLUI_SOURCE/CMakeLists.txt" ]; then

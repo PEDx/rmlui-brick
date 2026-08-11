@@ -141,6 +141,9 @@ while :; do
         GBA:*.gba|GBA:*.GBA|GBA:*.zip|GBA:*.ZIP)
             CORE_PATH="$CORES_PATH/gpsp_libretro.so"
             ;;
+        SFC:*.sfc|SFC:*.SFC|SFC:*.smc|SFC:*.SMC|SFC:*.zip|SFC:*.ZIP)
+            CORE_PATH="$CORES_PATH/snes9x2005_plus_libretro.so"
+            ;;
         *)
             echo "Rejected unsupported system or ROM extension: $SYSTEM_ID" >&2
             continue
@@ -155,6 +158,8 @@ while :; do
 
     echo "Launching $SYSTEM_ID: $ROM_PATH"
     echo emulator > "$MODE_FILE"
+	# MinArch needs the system identity because GB and GBC share 160x144 output.
+	export MINARCH_SYSTEM="$SYSTEM_ID"
     # MinArch owns device power, audio, input and graphics state while a game is
     # running. It must leave through its own menu; an external SIGTERM can leave
     # the Brick in an unsafe power state.

@@ -125,7 +125,7 @@ RML 可用 UI 元素、表单控件、滚动列表和掌机焦点联动，见
 ```sh
 brew install cmake zig sdl2_image
 git clone --depth 1 --branch 6.2 \
-  https://github.com/mikke89/RmlUi.git /tmp/RmlUi-6.2
+  https://github.com/mikke89/RmlUi.git .deps/RmlUi-6.2
 ```
 
 本机版本：
@@ -194,7 +194,7 @@ cd /mnt/UDISK/trimui-dev/rmlui-prototype/current
 - 尚未实现游戏简介、收藏和最近游玩时长；
 - 尚未接入网络、音量、亮度和休眠恢复状态；
 - 尚未实现自动降亮度、闲置关屏和完整的桌面电源管理策略；
-- 模拟器画面的整数缩放、LCD fragment shader 和机型 Overlay 尚未实现；
+- GBA 已接入绑定 240×160 原始像素网格的 4× LCD aperture shader；其他机型仍使用纹理效果；
 - Debugger 仍编入开发版本，正式 Release 应移除以减小代码量；
 - 原厂脚本会输出一次无害的 `setterm: not found`，不影响 SDL/RmlUi 渲染。
 
@@ -203,6 +203,6 @@ cd /mnt/UDISK/trimui-dev/rmlui-prototype/current
 1. 完成更多 GB/GBC/GBA 游戏的存档与长时间运行回归；
 2. 加载游戏简介、收藏、最近游玩状态和设备端封面刮削；
 3. 为 GBA 增加 mGBA 兼容性 fallback；
-4. 接入整数缩放、LCD shader 和机型 Overlay；
+4. 将 GBA 的 GLES2 aperture 方案扩展到其他适合整数缩放的机型；
 5. 验证原生 OSD、休眠和唤醒后的图形上下文恢复；
 6. 在核心功能稳定后完成降亮度、无线网络和 CPU 档位等续航优化。

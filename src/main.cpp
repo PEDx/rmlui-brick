@@ -23,19 +23,25 @@ constexpr int kWidth = 1024;
 constexpr int kHeight = 768;
 constexpr Uint64 kTransitionMilliseconds = 220;
 constexpr Uint64 kIdlePollMilliseconds = 16;
-constexpr Uint64 kBatteryPollMilliseconds = 60000;
+constexpr Uint64 kBatteryPollMilliseconds = 10000;
 constexpr Uint64 kFrameLogMilliseconds = 60000;
 constexpr Uint64 kScreenshotDelayMilliseconds = 1250;
+constexpr Uint64 kGameRailTransitionMilliseconds = 240;
+constexpr int kGameVisibleCount = 4;
+constexpr int kGameTrackSlotCount = 6;
+constexpr int kGameCardStep = 236;
+constexpr int kGameTrackRestingLeft = -231;
 
 struct ModelInfo {
     const char* id;
     GameSystem system;
 };
 
-constexpr std::array<ModelInfo, 3> kModels = {{
+constexpr std::array<ModelInfo, 4> kModels = {{
     {"model-gb", GameSystem::GameBoy},
     {"model-gbc", GameSystem::GameBoyColor},
     {"model-gba", GameSystem::GameBoyAdvance},
+    {"model-sfc", GameSystem::SuperNintendo},
 }};
 
 struct Options {
@@ -131,9 +137,19 @@ int ReadBatteryPercent()
     return -1;
 }
 
+std::string ReadBatteryStatus()
+{
+    std::ifstream stream("/sys/class/power_supply/axp2202-battery/status");
+    std::string status;
+    if (std::getline(stream, status))
+        return status;
+    return {};
+}
+
 struct DeviceStatusState {
     std::string clock;
     int battery = -2;
+    std::string battery_status;
 };
 
 bool UpdateDeviceStatus(
@@ -159,16 +175,29 @@ bool UpdateDeviceStatus(
 
     if (update_battery) {
         const int battery = ReadBatteryPercent();
-        if (state.battery != battery) {
+        const std::string battery_status = ReadBatteryStatus();
+        if (state.battery != battery || state.battery_status != battery_status) {
             state.battery = battery;
+            state.battery_status = battery_status;
             if (battery >= 0) {
                 SetText(document, "battery-text", Rml::CreateString("%d%%", battery));
-                if (Rml::Element* fill = document->GetElementById("battery-fill"))
-                    fill->SetProperty("width", Rml::CreateString("%d%%", battery));
+                if (Rml::Element* fill = document->GetElementById("battery-fill")) {
+                    const int fill_width = battery == 0
+                        ? 0
+                        : std::max(3, (30 * battery + 50) / 100);
+                    fill->SetProperty("width", Rml::CreateString("%dpx", fill_width));
+                }
             } else {
                 SetText(document, "battery-text", "--%");
                 if (Rml::Element* fill = document->GetElementById("battery-fill"))
-                    fill->SetProperty("width", "0%");
+                    fill->SetProperty("width", "0px");
+            }
+            if (Rml::Element* status = document->GetElementById("battery-status")) {
+                const bool charging = battery_status == "Charging" || battery_status == "Full";
+                status->SetClass("charging", charging);
+                status->SetClass("charged", battery_status == "Full");
+                status->SetClass("critical", !charging && battery >= 0 && battery <= 10);
+                status->SetClass("low", !charging && battery > 10 && battery <= 20);
             }
             changed = true;
         }
@@ -182,7 +211,8 @@ public:
     DesktopController(Rml::ElementDocument* document, const Options& options)
         : document(document), options(options)
     {
-        UpdateCarousel();
+        if (Rml::Element* roll = document->GetElementById("console-roll"))
+            roll->SetClass("initializing", true);
         RestoreState();
     }
 
@@ -255,8 +285,89 @@ public:
 
     bool ExitRequested() const { return exit_requested; }
 
+    bool UpdateAnimations()
+    {
+        bool changed = false;
+        if (carousel_initialization_frames > 0) {
+            --carousel_initialization_frames;
+            if (carousel_initialization_frames == 0) {
+                if (Rml::Element* roll = document->GetElementById("console-roll"))
+                    roll->SetClass("initializing", false);
+                changed = true;
+            }
+        }
+
+        if (rail_animation == RailAnimation::Idle)
+            return changed;
+
+        const Uint64 now = SDL_GetTicks64();
+        if (rail_animation == RailAnimation::Revealing) {
+            // The rail was populated while hidden. Reveal it once with all
+            // transitions disabled so no stale selection state from the
+            // previous library visit can be painted in an intermediate slot.
+            SetDisplay("game-track", "flex");
+            rail_animation = RailAnimation::Snapping;
+            return true;
+        }
+
+        if (rail_animation == RailAnimation::Sliding) {
+            if (now < rail_animation_deadline) {
+                // Drive the rail position explicitly instead of relying on an
+                // RCSS transition. This guarantees visible, frame-by-frame
+                // movement on the Brick renderer and gives the scroll a soft
+                // cubic ease-out as it settles on the next card.
+                const double elapsed = static_cast<double>(now - rail_animation_started_at);
+                const double duration = static_cast<double>(kGameRailTransitionMilliseconds);
+                const double progress = std::min(elapsed / duration, 1.0);
+                const double remaining = 1.0 - progress;
+                const double eased = 1.0 - remaining * remaining * remaining;
+                const double left = static_cast<double>(rail_animation_from_left) +
+                    static_cast<double>(rail_animation_to_left - rail_animation_from_left) * eased;
+                if (Rml::Element* track = document->GetElementById("game-track"))
+                    track->SetProperty("left", Rml::CreateString("%.2fpx", left));
+                return true;
+            }
+
+            visible_start = rail_target_start;
+            if (Rml::Element* track = document->GetElementById("game-track")) {
+                // Keep the active card visually neutral during the invisible
+                // ring-buffer reset. It will reveal only after reaching its
+                // final slot.
+                track->SetClass("snapping", true);
+                track->SetProperty("left", Rml::CreateString("%dpx", kGameTrackRestingLeft));
+            }
+            PopulateGameTrack();
+            rail_animation = RailAnimation::Snapping;
+            return true;
+        }
+
+        // The reset above was rendered once without a transition. Re-enable
+        // transitions on the next frame, then continue toward any selection
+        // queued by rapid directional input.
+        Rml::Element* track = document->GetElementById("game-track");
+        if (track)
+            track->SetClass("snapping", false);
+        rail_animation = RailAnimation::Idle;
+
+        const std::size_t desired_start = CalculateVisibleStart();
+        if (desired_start != visible_start) {
+            // Keep the active treatment hidden while catching up with rapid
+            // input; reveal it only after the final queued step arrives.
+            StartRailMove(desired_start);
+        } else if (track) {
+            track->SetClass("scrolling", false);
+        }
+        return true;
+    }
+
+    bool IsAnimating() const
+    {
+        return carousel_initialization_frames > 0 || rail_animation != RailAnimation::Idle;
+    }
+
 private:
     enum class View { Home, Library };
+    enum class RailAnimation { Idle, Revealing, Sliding, Snapping };
 
     void SetDisplay(const char* id, const char* value)
     {
@@ -270,10 +381,21 @@ private:
             image->SetAttribute("src", source);
     }
 
-    void OpenLibrary()
+    void OpenLibrary(const std::string& preferred_rom_path = {})
     {
         games = ScanGames(options.rom_root, kModels[selected_system].system);
         selected_game = 0;
+        if (!preferred_rom_path.empty()) {
+            const auto match = std::find_if(games.begin(), games.end(), [&](const GameInfo& game) {
+                return game.path == preferred_rom_path;
+            });
+            if (match != games.end())
+                selected_game = static_cast<std::size_t>(match - games.begin());
+        }
+        visible_start = 0;
+        rail_target_start = 0;
+        rail_animation = RailAnimation::Idle;
+        library_track_initialized = false;
         std::fprintf(
             stderr,
             "[catalog] system=%s root=%s games=%zu\n",
@@ -288,7 +410,87 @@ private:
         SetDisplay("library-mark", "flex");
         view = View::Library;
         UpdateLibrary();
-        SaveState(games.empty() ? std::string() : games.front().path);
+        SaveState(games.empty() ? std::string() : games[selected_game].path);
+    }
+
+    std::size_t CalculateVisibleStart() const
+    {
+        if (games.size() <= kGameVisibleCount)
+            return 0;
+
+        // Treat the second visible card as the navigation anchor. After the
+        // selection reaches it, subsequent input scrolls the rail beneath the
+        // fixed active position. At the beginning and on the final screen the
+        // window is clamped, allowing the active card to travel to the first,
+        // third, and fourth positions so every game remains reachable.
+        const std::size_t maximum_start = games.size() - kGameVisibleCount;
+        const std::size_t anchored_start = selected_game > 0 ? selected_game - 1 : 0;
+        return std::min(anchored_start, maximum_start);
+    }
+
+    void PopulateGameTrack()
+    {
+        const GameSystemInfo& system = GetGameSystemInfo(kModels[selected_system].system);
+        for (int slot = 0; slot < kGameTrackSlotCount; ++slot) {
+            const Rml::String card_id = Rml::CreateString("game-card-%d", slot);
+            Rml::Element* card = document->GetElementById(card_id);
+            if (!card)
+                continue;
+
+            // Slot zero and slot five are the off-screen buffers. Keeping empty
+            // slots in the flex layout is important; display:none would collapse
+            // them and change the track's geometry near either end of the list.
+            const long long game_index = static_cast<long long>(visible_start) + slot - 1;
+            const bool valid = game_index >= 0 && game_index < static_cast<long long>(games.size());
+            card->SetProperty("display", "block");
+            card->SetClass("buffer-empty", !valid);
+            card->SetClass("active", valid && static_cast<std::size_t>(game_index) == selected_game);
+            if (!valid) {
+                card->SetClass("placeholder", false);
+                continue;
+            }
+
+            const GameInfo& game = games[static_cast<std::size_t>(game_index)];
+            card->SetClass("placeholder", game.cover.empty());
+            SetImage(
+                Rml::CreateString("game-cover-%d", slot).c_str(),
+                game.cover.empty() ? system.console_image : game.cover);
+            SetText(
+                document,
+                Rml::CreateString("game-label-%d", slot).c_str(),
+                game.title);
+        }
+    }
+
+    void StartRailMove(std::size_t desired_start)
+    {
+        if (rail_animation != RailAnimation::Idle || desired_start == visible_start)
+            return;
+
+        const long long difference = static_cast<long long>(desired_start) -
+            static_cast<long long>(visible_start);
+        if (difference != -1 && difference != 1) {
+            // Restoring a far-away game or wrapping from one end to the other is
+            // not spatially adjacent, so snap directly instead of sweeping past
+            // unrelated covers.
+            visible_start = desired_start;
+            PopulateGameTrack();
+            return;
+        }
+
+        PopulateGameTrack();
+        rail_target_start = desired_start;
+        const int direction = difference > 0 ? 1 : -1;
+        rail_animation_from_left = kGameTrackRestingLeft;
+        rail_animation_to_left = kGameTrackRestingLeft - direction * kGameCardStep;
+        if (Rml::Element* track = document->GetElementById("game-track")) {
+            track->SetClass("snapping", false);
+            track->SetClass("scrolling", true);
+            track->SetProperty("left", Rml::CreateString("%dpx", rail_animation_from_left));
+        }
+        rail_animation_started_at = SDL_GetTicks64();
+        rail_animation_deadline = rail_animation_started_at + kGameRailTransitionMilliseconds;
+        rail_animation = RailAnimation::Sliding;
     }
 
     void UpdateLibrary()
@@ -301,40 +503,40 @@ private:
 
         if (games.empty()) {
             SetDisplay("library-empty", "flex");
-            for (int slot = 0; slot < 4; ++slot)
-                SetDisplay(Rml::CreateString("game-card-%d", slot).c_str(), "none");
+            SetDisplay("game-track", "none");
             SetText(document, "library-title", "没有找到可运行的 ROM");
             SetText(document, "library-position", "0 / 0");
             return;
         }
 
         SetDisplay("library-empty", "none");
-        const std::size_t visible_count = std::min<std::size_t>(4, games.size());
-        std::size_t start = 0;
-        if (games.size() > visible_count && selected_game >= visible_count)
-            start = std::min(selected_game - 1, games.size() - visible_count);
-
-        for (int slot = 0; slot < 4; ++slot) {
-            const Rml::String card_id = Rml::CreateString("game-card-%d", slot);
-            Rml::Element* card = document->GetElementById(card_id);
-            const std::size_t game_index = start + static_cast<std::size_t>(slot);
-            if (!card || slot >= static_cast<int>(visible_count) || game_index >= games.size()) {
-                if (card)
-                    card->SetProperty("display", "none");
-                continue;
+        const std::size_t desired_start = CalculateVisibleStart();
+        if (!library_track_initialized) {
+            // Populate off-screen first. The next animation update reveals the
+            // already-finalized first frame, preventing a one-frame flash of a
+            // stale active card in the second slot.
+            SetDisplay("game-track", "none");
+            visible_start = desired_start;
+            if (Rml::Element* track = document->GetElementById("game-track")) {
+                track->SetClass("scrolling", false);
+                track->SetClass("snapping", true);
+                track->SetProperty("left", Rml::CreateString("%dpx", kGameTrackRestingLeft));
             }
-
-            card->SetProperty("display", "block");
-            card->SetClass("active", game_index == selected_game);
-            card->SetClass("placeholder", games[game_index].cover.empty());
-            const std::string cover = games[game_index].cover.empty()
-                ? system.console_image
-                : games[game_index].cover;
-            SetImage(Rml::CreateString("game-cover-%d", slot).c_str(), cover);
-            SetText(
-                document,
-                Rml::CreateString("game-label-%d", slot).c_str(),
-                games[game_index].title);
+            PopulateGameTrack();
+            rail_animation = RailAnimation::Revealing;
+            library_track_initialized = true;
+        } else if (rail_animation == RailAnimation::Idle) {
+            SetDisplay("game-track", "flex");
+            if (desired_start == visible_start)
+                PopulateGameTrack();
+            else
+                StartRailMove(desired_start);
+        } else {
+            if (rail_animation != RailAnimation::Revealing)
+                SetDisplay("game-track", "flex");
+            // Refresh the active marker immediately when input arrives during a
+            // slide. The requested window is picked up after the current step.
+            PopulateGameTrack();
         }
 
         SetText(document, "library-title", games[selected_game].title);
@@ -363,8 +565,10 @@ private:
         std::ifstream stream(options.state, std::ios::binary);
         std::string system_id;
         std::string rom_path;
-        if (!std::getline(stream, system_id) || !std::getline(stream, rom_path))
+        if (!std::getline(stream, system_id) || !std::getline(stream, rom_path)) {
+            UpdateCarousel();
             return;
+        }
 
         for (std::size_t index = 0; index < kModels.size(); ++index) {
             if (system_id == GetGameSystemInfo(kModels[index].system).id) {
@@ -376,15 +580,10 @@ private:
         if (rom_path.empty())
             return;
 
-        OpenLibrary();
-        const auto match = std::find_if(games.begin(), games.end(), [&](const GameInfo& game) {
-            return game.path == rom_path;
-        });
-        if (match != games.end())
-            selected_game = static_cast<std::size_t>(match - games.begin());
-        UpdateLibrary();
-        if (!games.empty())
-            SaveState(games[selected_game].path);
+        // Resolve the saved game before the rail is populated. Restoring it
+        // after OpenLibrary() prepared the first frame briefly displayed the
+        // beginning of the catalog and could leave no visible card active.
+        OpenLibrary(rom_path);
     }
 
     void UpdateCarousel()
@@ -412,6 +611,15 @@ private:
     std::vector<GameInfo> games;
     int selected_system = 1;
     std::size_t selected_game = 0;
+    std::size_t visible_start = 0;
+    std::size_t rail_target_start = 0;
+    Uint64 rail_animation_started_at = 0;
+    Uint64 rail_animation_deadline = 0;
+    int rail_animation_from_left = kGameTrackRestingLeft;
+    int rail_animation_to_left = kGameTrackRestingLeft;
+    RailAnimation rail_animation = RailAnimation::Idle;
+    int carousel_initialization_frames = 2;
+    bool library_track_initialized = false;
     View view = View::Home;
     bool exit_requested = false;
 };
@@ -452,8 +660,10 @@ bool HandleControllerButton(Uint8 button, bool& running, DesktopController& desk
     switch (button) {
     case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return desktop.Move(-1);
     case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return desktop.Move(1);
-    case SDL_CONTROLLER_BUTTON_A: return desktop.Activate();
-    case SDL_CONTROLLER_BUTTON_B:
+    // The TG5040 stock input daemon exposes the physical A/B buttons with the
+    // first-release indices swapped: physical A is SDL B, physical B is SDL A.
+    case SDL_CONTROLLER_BUTTON_B: return desktop.Activate();
+    case SDL_CONTROLLER_BUTTON_A:
         if (desktop.Back())
             return true;
         running = false;
@@ -662,9 +872,11 @@ int main(int argc, char** argv)
             case SDL_JOYBUTTONDOWN:
                 std::fprintf(stderr, "[input] joystick button=%u\n", event.jbutton.button);
                 if (!controller) {
-                    if (event.jbutton.button == 0) {
+                    // Match the TG5040 physical labels in raw joystick fallback
+                    // mode as well: button 1 is A, button 0 is B.
+                    if (event.jbutton.button == 1) {
                         changed = desktop.Activate();
-                    } else if (event.jbutton.button == 1) {
+                    } else if (event.jbutton.button == 0) {
                         changed = desktop.Back();
                         if (!changed)
                             running = false;
@@ -706,6 +918,7 @@ int main(int argc, char** argv)
 
         while (running) {
             Uint64 now = SDL_GetPerformanceCounter();
+            dirty = desktop.UpdateAnimations() || dirty;
 
             if (now >= next_clock_poll) {
                 dirty = UpdateDeviceStatus(document, device_status, false) || dirty;
@@ -722,7 +935,7 @@ int main(int argc, char** argv)
                     stderr,
                     "[frame] rendered=%.1f FPS mode=%s renderer_ok=%s\n",
                     rendered_fps,
-                    now < animate_until ? "animated" : "idle",
+                    (now < animate_until || desktop.IsAnimating()) ? "animated" : "idle",
                     render_interface.IsHealthy() ? "yes" : "no");
                 frame_count = 0;
                 frame_log_start = now;
@@ -735,7 +948,7 @@ int main(int argc, char** argv)
                 break;
             }
 
-            const bool animating = now < animate_until;
+            const bool animating = now < animate_until || desktop.IsAnimating();
             if (!dirty && !animating) {
                 int wait_milliseconds = MillisecondsUntil(now, next_clock_poll, frequency);
                 wait_milliseconds = std::min(

@@ -116,20 +116,81 @@ p {
     gap: 8px;
 }
 
-.battery-shell {
+.battery-icon-slot {
     width: 42px;
-    height: 20px;
-    padding: 2px;
-    border: 2px #29271f;
-    border-radius: 4px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.battery-indicator {
+    width: 40px;
+    height: 28px;
+    position: relative;
 }
 
 #battery-fill {
-    width: 70%;
-    height: 100%;
+    width: 0;
+    height: 14px;
+    position: absolute;
+    left: 3px;
+    top: 7px;
+    z-index: 1;
     display: block;
     background-color: #6246c7;
     border-radius: 2px;
+}
+
+.battery-shell {
+    width: 36px;
+    height: 20px;
+    position: absolute;
+    left: 0;
+    top: 4px;
+    z-index: 2;
+    display: block;
+    background-color: transparent;
+    border: 2px #171611;
+    border-radius: 4px;
+}
+
+.battery-terminal {
+    width: 4px;
+    height: 10px;
+    position: absolute;
+    left: 36px;
+    top: 9px;
+    z-index: 2;
+    display: block;
+    background-color: #171611;
+    border-radius: 1px;
+}
+
+.battery-charge-indicator {
+    width: 10px;
+    height: 13px;
+    position: absolute;
+    left: 13px;
+    top: 7px;
+    z-index: 3;
+    display: none;
+}
+
+.battery-status.critical #battery-fill {
+    background-color: #d84c4c;
+}
+
+.battery-status.low #battery-fill {
+    background-color: #d28a2e;
+}
+
+.battery-status.charging #battery-fill {
+    background-color: #2e9d5b;
+}
+
+.battery-status.charging .battery-charge-indicator {
+    display: block;
 }
 
 #battery-text {
@@ -167,6 +228,8 @@ p {
 
 .model-card {
     position: absolute;
+    left: -400px;
+    top: 139px;
     margin: 0;
     padding: 0;
     display: flex;
@@ -177,6 +240,13 @@ p {
     border: 0px transparent;
     opacity: 0.48;
     transition: left 0.18s, top 0.18s, width 0.18s, height 0.18s, opacity 0.18s;
+}
+
+/* Apply the restored slot assignment for one complete frame before enabling
+   navigation transitions. This prevents the saved model from animating out of
+   the static GBC defaults when the desktop first opens. */
+#console-roll.initializing .model-card {
+    transition: none;
 }
 
 .model-card.slot-left {
@@ -235,6 +305,12 @@ p {
     margin-top: 10px;
 }
 
+.logo-sfc {
+    width: 190px;
+    height: 54px;
+    margin-top: 4px;
+}
+
 .slot-center .logo-gb {
     width: 200px;
     height: 36px;
@@ -248,6 +324,12 @@ p {
 .slot-center .logo-gba {
     width: 220px;
     height: 26px;
+}
+
+.slot-center .logo-sfc {
+    width: 250px;
+    height: 72px;
+    margin-top: -2px;
 }
 
 .position-dots {
@@ -281,50 +363,101 @@ p {
 #game-rail {
     width: 944px;
     height: 372px;
-    padding-top: 32px;
-    display: flex;
-    align-items: center;
-    gap: 18px;
+    position: relative;
     overflow: hidden;
 }
 
+/* Keep one buffered card on either side of the four-card viewport. Moving the
+   whole track by one card step makes page changes read as continuous scrolling
+   instead of replacing all four covers in place. */
+.game-track {
+    width: 1398px;
+    height: 228px;
+    position: absolute;
+    left: -231px;
+    top: 88px;
+    display: flex;
+    gap: 18px;
+    overflow: visible;
+    /* Position is eased frame-by-frame by DesktopController so the animation
+       remains smooth and visible on the Brick's minimal renderer. */
+    transition: none;
+}
+
+/* While the covers are moving, keep the incoming active card neutral. Once it
+   reaches the second slot, removing this class lets the card enlarge and its
+   purple selection ring fade in at the final position. */
+.game-track.scrolling .game-card.active .game-card-surface {
+    width: 218px;
+    height: 218px;
+    left: 0;
+    top: 0;
+    transition: none;
+}
+
+.game-track.scrolling .game-selection-ring {
+    opacity: 0;
+    transition: none;
+}
+
+/* Used for the invisible ring-buffer reset after a card has left the viewport. */
+.game-track.snapping,
+.game-track.snapping .game-card-surface,
+.game-track.snapping .game-selection-ring {
+    transition: none;
+}
+
+/* The flex item is only a stable layout slot. Selection never changes this
+   element's dimensions, so moving between games cannot reflow the rail. */
 .game-card {
     width: 218px;
     height: 218px;
     flex: 0 0 218px;
     position: relative;
-    margin-top: 0;
-    overflow: hidden;
-    background-color: #faf8f1;
-    border: 1px #d8d1c4;
-    border-radius: 18px;
+    margin-top: 5px;
+    overflow: visible;
+    background-color: transparent;
+    border: 0px transparent;
 }
 
 .game-card.active {
-    width: 229px;
-    height: 229px;
-    flex-basis: 229px;
-    background-color: #6246c7;
-    border: 0px transparent;
-    border-radius: 19px;
+    z-index: 4;
 }
 
-.game-cover-frame {
+.game-card.buffer-empty {
+    opacity: 0;
+}
+
+/* Scale the visual surface with dimensions instead of CSS transform, which is
+   not implemented by the current renderer. Because this layer is absolute,
+   the animated size does not participate in flex layout. */
+.game-card-surface {
     width: 218px;
     height: 218px;
     position: absolute;
-    left: -1px;
-    top: -1px;
-    overflow: hidden;
-    border-radius: 17px;
+    left: 0;
+    top: 0;
+    overflow: visible;
+    transition: left 0.16s cubic-out, top 0.16s cubic-out, width 0.16s cubic-out, height 0.16s cubic-out;
 }
 
-.game-card.active .game-cover-frame {
-    width: 217px;
-    height: 217px;
+.game-card.active .game-card-surface {
+    width: 228px;
+    height: 228px;
+    left: -5px;
+    top: -5px;
+}
+
+/* The cover stays inside the six-pixel frame. RmlUi currently only supports a
+   rectangular scissor, so placing the square image below the frame lets the
+   rounded frame cover its four corners without relying on rounded clipping. */
+.game-cover-frame {
+    position: absolute;
     left: 6px;
+    right: 6px;
     top: 6px;
-    border-radius: 13px;
+    bottom: 6px;
+    overflow: hidden;
 }
 
 .game-cover {
@@ -333,25 +466,43 @@ p {
     display: block;
 }
 
-.game-card.placeholder {
-    background-color: #ece5db;
+/* Both frames use identical geometry. The neutral frame permanently hides the
+   square image corners; the purple frame then fades in exactly on top of it. */
+.game-corner-frame,
+.game-selection-ring {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: block;
+    border: 6px #e8e1d4;
+    border-radius: 18px;
+    pointer-events: none;
 }
 
-.game-card.active.placeholder {
-    background-color: #6246c7;
+.game-corner-frame {
+    z-index: 2;
+}
+
+.game-selection-ring {
+    z-index: 3;
+    opacity: 0;
+    border-color: #6246c7;
+    transition: opacity 0.16s cubic-out;
+}
+
+.game-card.active .game-selection-ring {
+    opacity: 1;
 }
 
 .game-card.placeholder .game-cover-frame {
-    left: 22px;
-    top: 14px;
+    left: 23px;
+    top: 17px;
+    right: auto;
+    bottom: auto;
     width: 172px;
     height: 172px;
-    border-radius: 0;
-}
-
-.game-card.active.placeholder .game-cover-frame {
-    left: 28px;
-    top: 20px;
 }
 
 .game-card.placeholder .game-label {
@@ -363,6 +514,7 @@ p {
     left: 12px;
     right: 12px;
     bottom: 10px;
+    z-index: 4;
     display: none;
     color: #4e493f;
     font-size: 14px;
@@ -373,6 +525,9 @@ p {
 #library-empty {
     width: 944px;
     height: 260px;
+    position: absolute;
+    left: 0;
+    top: 56px;
     display: none;
     flex-direction: column;
     align-items: center;

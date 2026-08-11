@@ -18,8 +18,15 @@
             <div class="device-status">
                 <img class="status-icon" src="ui/bluetooth.png"/>
                 <img class="status-icon" src="ui/wifi.png"/>
-                <div class="battery-status">
-                    <div class="battery-shell"><span id="battery-fill"></span></div>
+                <div id="battery-status" class="battery-status">
+                    <div class="battery-icon-slot">
+                        <div class="battery-indicator">
+                            <span id="battery-fill"></span>
+                            <span class="battery-shell"></span>
+                            <span class="battery-terminal"></span>
+                            <img class="battery-charge-indicator" src="ui/battery-charging-mark.png"/>
+                        </div>
+                    </div>
                     <span id="battery-text">--%</span>
                 </div>
                 <span id="clock">--:--</span>
@@ -40,35 +47,74 @@
                     <img class="console-image" src="icons/gba-indigo-simple.png"/>
                     <img class="console-logo logo-gba" src="ui/logo-gba.png"/>
                 </button>
+                <button id="model-sfc" class="model-card model-sfc">
+                    <img class="console-image" src="icons/snes-classic-simple.png"/>
+                    <img class="console-logo logo-sfc" src="ui/logo-snes.png"/>
+                </button>
             </div>
             <div class="position-dots">
                 <span id="position-0" class="position-dot"></span>
                 <span id="position-1" class="position-dot active"></span>
                 <span id="position-2" class="position-dot"></span>
+                <span id="position-3" class="position-dot"></span>
             </div>
         </main>
 
         <main id="library-view">
             <div id="game-rail">
-                <div id="game-card-0" class="game-card active">
-                    <div class="game-cover-frame"><img id="game-cover-0" class="game-cover" src="icons/gbc-atomic-purple-simple.png"/></div>
-                    <span id="game-label-0" class="game-label"></span>
+                <div id="game-track" class="game-track">
+                <div id="game-card-0" class="game-card">
+                    <div class="game-card-surface">
+                        <div class="game-cover-frame"><img id="game-cover-0" class="game-cover" src="icons/gbc-atomic-purple-simple.png"/></div>
+                        <div class="game-corner-frame"></div>
+                        <div class="game-selection-ring"></div>
+                        <span id="game-label-0" class="game-label"></span>
+                    </div>
                 </div>
                 <div id="game-card-1" class="game-card">
-                    <div class="game-cover-frame"><img id="game-cover-1" class="game-cover" src="icons/gbc-atomic-purple-simple.png"/></div>
-                    <span id="game-label-1" class="game-label"></span>
+                    <div class="game-card-surface">
+                        <div class="game-cover-frame"><img id="game-cover-1" class="game-cover" src="icons/gbc-atomic-purple-simple.png"/></div>
+                        <div class="game-corner-frame"></div>
+                        <div class="game-selection-ring"></div>
+                        <span id="game-label-1" class="game-label"></span>
+                    </div>
                 </div>
                 <div id="game-card-2" class="game-card">
-                    <div class="game-cover-frame"><img id="game-cover-2" class="game-cover" src="icons/gbc-atomic-purple-simple.png"/></div>
-                    <span id="game-label-2" class="game-label"></span>
+                    <div class="game-card-surface">
+                        <div class="game-cover-frame"><img id="game-cover-2" class="game-cover" src="icons/gbc-atomic-purple-simple.png"/></div>
+                        <div class="game-corner-frame"></div>
+                        <div class="game-selection-ring"></div>
+                        <span id="game-label-2" class="game-label"></span>
+                    </div>
                 </div>
                 <div id="game-card-3" class="game-card">
-                    <div class="game-cover-frame"><img id="game-cover-3" class="game-cover" src="icons/gbc-atomic-purple-simple.png"/></div>
-                    <span id="game-label-3" class="game-label"></span>
+                    <div class="game-card-surface">
+                        <div class="game-cover-frame"><img id="game-cover-3" class="game-cover" src="icons/gbc-atomic-purple-simple.png"/></div>
+                        <div class="game-corner-frame"></div>
+                        <div class="game-selection-ring"></div>
+                        <span id="game-label-3" class="game-label"></span>
+                    </div>
+                </div>
+                <div id="game-card-4" class="game-card">
+                    <div class="game-card-surface">
+                        <div class="game-cover-frame"><img id="game-cover-4" class="game-cover" src="icons/gbc-atomic-purple-simple.png"/></div>
+                        <div class="game-corner-frame"></div>
+                        <div class="game-selection-ring"></div>
+                        <span id="game-label-4" class="game-label"></span>
+                    </div>
+                </div>
+                <div id="game-card-5" class="game-card">
+                    <div class="game-card-surface">
+                        <div class="game-cover-frame"><img id="game-cover-5" class="game-cover" src="icons/gbc-atomic-purple-simple.png"/></div>
+                        <div class="game-corner-frame"></div>
+                        <div class="game-selection-ring"></div>
+                        <span id="game-label-5" class="game-label"></span>
+                    </div>
+                </div>
                 </div>
                 <div id="library-empty">
                     <img src="ui/folder.png"/>
-                    <span>请把 ROM 放入对应的 GB、GBC 或 GBA 目录</span>
+                    <span>请把 ROM 放入对应的 GB、GBC、GBA 或 SFC 目录</span>
                 </div>
             </div>
             <div class="game-information">
