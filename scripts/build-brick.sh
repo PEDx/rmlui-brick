@@ -5,12 +5,14 @@ PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 RMLUI_SOURCE=${RMLUI_SOURCE:-"$PROJECT_DIR/.deps/RmlUi-6.2"}
 BUILD_DIR=${BUILD_DIR:-"$PROJECT_DIR/build/brick-zig"}
 
+RMLUI_SOURCE="$RMLUI_SOURCE" "$PROJECT_DIR/scripts/setup-rmlui.sh"
 if [ ! -f "$RMLUI_SOURCE/CMakeLists.txt" ]; then
     echo "RmlUi 6.2 source not found at: $RMLUI_SOURCE" >&2
     exit 1
 fi
 
 "$PROJECT_DIR/scripts/setup-toolchain.sh"
+"$PROJECT_DIR/scripts/build-minarch-brick.sh"
 
 cmake -S "$PROJECT_DIR" -B "$BUILD_DIR" \
     -DCMAKE_BUILD_TYPE=Release \

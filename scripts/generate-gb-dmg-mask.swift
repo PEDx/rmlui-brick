@@ -12,13 +12,12 @@ let scriptURL = URL(fileURLWithPath: #filePath)
 let projectRoot = scriptURL
     .deletingLastPathComponent()
     .deletingLastPathComponent()
-    .deletingLastPathComponent()
 let sourceURL = CommandLine.arguments.count > 1
     ? URL(fileURLWithPath: CommandLine.arguments[1])
     : projectRoot.appendingPathComponent("assets/generated/handheld-icons/gb-dmg-simple-source.png")
 let outputURL = CommandLine.arguments.count > 2
     ? URL(fileURLWithPath: CommandLine.arguments[2])
-    : projectRoot.appendingPathComponent("MinUI/skeleton/SYSTEM/res/gb-brick-mask-dmg-v2.png")
+    : projectRoot.appendingPathComponent("vendor/tg5040/res/gb-brick-mask-dmg-v2.png")
 
 guard
     let sourceProvider = CGImageSourceCreateWithURL(sourceURL as CFURL, nil),

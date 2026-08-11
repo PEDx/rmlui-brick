@@ -124,8 +124,6 @@ RML 可用 UI 元素、表单控件、滚动列表和掌机焦点联动，见
 
 ```sh
 brew install cmake zig sdl2_image
-git clone --depth 1 --branch 6.2 \
-  https://github.com/mikke89/RmlUi.git .deps/RmlUi-6.2
 ```
 
 本机版本：
@@ -142,7 +140,9 @@ Brick 版本：
 ./scripts/package-brick.sh
 ```
 
-`setup-toolchain.sh` 会下载并校验官方 TG5040 SDK，解压到被忽略的 `.deps/`。生成的可部署目录位于 `build/package/rmlui-prototype/`。
+构建脚本会自动获取并校验固定 revision 的 RmlUi；`setup-toolchain.sh` 会下载并校验官方
+TG5040 SDK，二者都放在被忽略的 `.deps/`。生成的自包含部署目录位于
+`build/package/rmlui-prototype/`。
 
 ## 实机运行
 
@@ -187,6 +187,10 @@ cd /mnt/UDISK/trimui-dev/rmlui-prototype/current
 为避免与原厂桌面争抢屏幕，推荐使用 `run-brick.sh start`。它会通过原厂
 `/tmp/cmd_to_run.sh` 完成交接，而不是在 `MainUI` 仍占用显示时直接运行。
 测试结束后原桌面自动恢复；该流程不覆盖原厂程序或开机配置。
+
+MinArch 的构建源码和 tg5040 运行资源已 vendoring 到本仓库。执行
+`scripts/build-brick.sh` 会同时构建前端与 `vendor/tg5040/bin/minarch.elf`，不需要相邻的
+MinUI 仓库；`scripts/package-brick.sh` 生成的目录包含完整模拟器 runtime。
 
 ## 当前限制
 

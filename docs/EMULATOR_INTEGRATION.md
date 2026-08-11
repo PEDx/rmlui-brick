@@ -15,6 +15,10 @@
 当前已接入 MinUI `tg5040` 的 MinArch、Gambatte 和 gpSP：GB/GBC 使用 Gambatte，GBA 使用
 gpSP。运行时不存在时，游戏库仍可浏览，但 launcher 会拒绝启动并返回桌面。
 
+项目现在将实际参与编译的 MinArch/common/tg5040 源码、Libretro API 头、四套 pak、核心二进制
+和渲染资源统一维护在 `vendor/minarch` 与 `vendor/tg5040`。构建与安装不读取相邻的 MinUI
+checkout；MinUI 只作为上游来源记录。
+
 Brick 必须使用包含原生 1024×768 支持的较新 MinArch。实测 2024-12-13 版本仍按
 1280×720 创建视频区域，会导致游戏画面右移、菜单横向拉伸；2025-11-27 版本已正常识别 Brick。
 
@@ -143,6 +147,26 @@ MinArch 运行时同时管理 Brick 的显示、音频、输入和电源状态�
 5. 仍需持续回归更多游戏的画面比例、音频、按键和存档兼容性。
 
 原厂 MainUI 和开机流程保持不变。测试运行时仅通过原厂交接脚本临时切换前端。
+
+## 独立构建与安装
+
+```sh
+./scripts/setup-toolchain.sh
+./scripts/build-brick.sh
+./scripts/package-brick.sh
+./scripts/install-emulator-runtime.sh
+```
+
+`build-brick.sh` 会同时从仓库内 vendored source 重建 `minarch.elf` 和 RmlUi 前端；
+`package-brick.sh` 将前端、MinArch、三个 core、四套 pak 与全部遮罩一起放入
+`build/package/rmlui-prototype`。
+
+也可以直接从打包目录安装 runtime：
+
+```sh
+RUNTIME_DIR=build/package/rmlui-prototype/runtime/tg5040 \
+  ./scripts/install-emulator-runtime.sh
+```
 
 ## 参考
 

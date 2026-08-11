@@ -2,6 +2,7 @@
 import struct
 import sys
 import zlib
+from pathlib import Path
 
 
 WIDTH = 1024
@@ -147,8 +148,11 @@ def main():
         raise ValueError("unsupported mask system: %s" % system)
     screen_x, screen_y, screen_width, screen_height, default_logo, target_width, target_height, logo_x, logo_y, rotate_logo = MASK_CONFIGS[system]
     body_color, edge_color = MASK_COLORS[system]
-    output = sys.argv[1] if len(sys.argv) > 1 else "../MinUI/skeleton/SYSTEM/res/%s-brick-mask.png" % system.lower()
+    project_dir = Path(__file__).resolve().parent.parent
+    output = Path(sys.argv[1]) if len(sys.argv) > 1 else project_dir / "vendor" / "tg5040" / "res" / ("%s-brick-mask.png" % system.lower())
     logo_path = sys.argv[2] if len(sys.argv) > 2 else default_logo
+    if not Path(logo_path).is_absolute():
+        logo_path = project_dir / logo_path
     pixels = bytearray(WIDTH * HEIGHT * 4)
 
     # The transparent window matches each system's integer Native scaling,

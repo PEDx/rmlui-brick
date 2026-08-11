@@ -2,6 +2,7 @@
 import struct
 import sys
 import zlib
+from pathlib import Path
 
 
 GBA_BRIGHTNESS = (
@@ -40,7 +41,8 @@ def main():
     if system not in LCD_CONFIGS:
         raise ValueError("unsupported LCD system: %s" % system)
     width, height, brightness, default_name = LCD_CONFIGS[system]
-    output = sys.argv[1] if len(sys.argv) > 1 else "../MinUI/skeleton/SYSTEM/res/%s" % default_name
+    project_dir = Path(__file__).resolve().parent.parent
+    output = Path(sys.argv[1]) if len(sys.argv) > 1 else project_dir / "vendor" / "tg5040" / "res" / default_name
     period = len(brightness)
 
     rows = bytearray()
