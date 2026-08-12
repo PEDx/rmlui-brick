@@ -38,12 +38,13 @@ struct ModelInfo {
     GameSystem system;
 };
 
-constexpr std::array<ModelInfo, 5> kModels = {{
+constexpr std::array<ModelInfo, 6> kModels = {{
     {"model-gb", GameSystem::GameBoy},
     {"model-gbc", GameSystem::GameBoyColor},
     {"model-gba", GameSystem::GameBoyAdvance},
     {"model-sfc", GameSystem::SuperNintendo},
     {"model-md", GameSystem::SegaGenesis},
+    {"model-gg", GameSystem::SegaGameGear},
 }};
 
 constexpr int WrapIndex(int index, int count)
@@ -51,8 +52,8 @@ constexpr int WrapIndex(int index, int count)
     return (index % count + count) % count;
 }
 
-static_assert(WrapIndex(-1, 5) == 4, "carousel must wrap left");
-static_assert(WrapIndex(5, 5) == 0, "carousel must wrap right");
+static_assert(WrapIndex(-1, 6) == 5, "carousel must wrap left");
+static_assert(WrapIndex(6, 6) == 0, "carousel must wrap right");
 
 struct Options {
     std::string assets = "assets";
@@ -321,7 +322,7 @@ public:
         } else if (carousel_animation == CarouselAnimation::Prepared) {
             // The incoming card was rendered once just outside the viewport.
             // Assign all target slots on the following frame so every move,
-            // including MD -> GB and GB -> MD, travels the short direction.
+            // including GG -> GB and GB -> GG, travels the short direction.
             UpdateCarousel(carousel_direction);
             if (Rml::Element* incoming = document->GetElementById(kModels[carousel_incoming].id))
                 incoming->SetClass("carousel-snap", false);

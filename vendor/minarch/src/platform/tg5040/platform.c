@@ -82,6 +82,7 @@ enum {
 	SCREEN_MASK_GBA,
 	SCREEN_MASK_SFC,
 	SCREEN_MASK_MD,
+	SCREEN_MASK_GG,
 };
 
 enum {
@@ -90,6 +91,7 @@ enum {
 	SCREEN_EFFECT_SFC_SHARP,
 	SCREEN_EFFECT_SFC_CRT,
 	SCREEN_EFFECT_SFC_COMPOSITE,
+	SCREEN_EFFECT_GG_APERTURE,
 };
 
 static int device_width;
@@ -128,6 +130,16 @@ static const char* game_fragment_shader =
 	"    float edge_x = (1.0 - step(0.5, local_pixel.x)) + step(2.5, local_pixel.x);\n"
 	"    float edge_y = (1.0 - step(0.5, local_pixel.y)) + step(2.5, local_pixel.y);\n"
 	"    float aperture = 1.0 - 0.10 * (edge_x + edge_y);\n"
+	"    color.rgb *= aperture;\n"
+	"  } else if (u_effect_mode > 4.5 && u_effect_mode < 5.5) {\n"
+	"    vec2 game_pos = vec2(\n"
+	"      gl_FragCoord.x - u_game_viewport.x,\n"
+	"      (u_output_height - gl_FragCoord.y) - u_game_viewport.y\n"
+	"    );\n"
+	"    vec2 local_pixel = mod(floor(game_pos), vec2(6.0, 5.0));\n"
+	"    float edge_x = (1.0 - step(0.5, local_pixel.x)) + step(4.5, local_pixel.x);\n"
+	"    float edge_y = (1.0 - step(0.5, local_pixel.y)) + step(3.5, local_pixel.y);\n"
+	"    float aperture = 1.0 - 0.08 * edge_x - 0.10 * edge_y;\n"
 	"    color.rgb *= aperture;\n"
 	"  } else if (u_effect_mode > 1.5) {\n"
 	"    vec2 texel = 1.0 / u_texture_size;\n"
@@ -333,7 +345,8 @@ SDL_Surface* PLAT_initVideo(void) {
 	is_brick = device && strcmp(device, "brick") == 0;
 	const char* system = getenv("MINARCH_SYSTEM");
 	int request_game_gl = is_brick && system &&
-		(strcmp(system, "GBA") == 0 || strcmp(system, "SFC") == 0 || strcmp(system, "MD") == 0);
+		(strcmp(system, "GBA") == 0 || strcmp(system, "SFC") == 0 ||
+		 strcmp(system, "MD") == 0 || strcmp(system, "GG") == 0);
 	vid.crt_shader_mode = SCREEN_EFFECT_SFC_SHARP;
 	const char* crt_shader = system && strcmp(system, "MD") == 0
 		? getenv("MINARCH_MD_SHADER")
@@ -457,6 +470,11 @@ SDL_Surface* PLAT_initVideo(void) {
 				(vid.crt_shader_mode==SCREEN_EFFECT_NONE ? "off" : "sharp"));
 			LOG_info("MD screen shader preset: %s\n", preset);
 		}
+		else if (system && strcmp(system, "GG") == 0) {
+			vid.screen_mask_type = SCREEN_MASK_GG;
+			mask_name = "gg-brick-mask.png";
+			if (!vid.use_game_gl) lcd_name = "gg-lcd-6x5.png";
+		}
 
 		if (mask_name) {
 			char mask_path[128];
@@ -568,6 +586,7 @@ static void resizeVideo(int w, int h, int p) {
 		((vid.screen_mask_type==SCREEN_MASK_GBA && w==240 && h==160) ||
 		 (vid.screen_mask_type==SCREEN_MASK_SFC && w==256 && (h==224 || h==239)) ||
 		 (vid.screen_mask_type==SCREEN_MASK_MD && w==320 && (h==224 || h==240)) ||
+		 (vid.screen_mask_type==SCREEN_MASK_GG && w==160 && h==144) ||
 		 (vid.screen_mask_type!=SCREEN_MASK_NONE && w==160 && h==144));
 	if (vid.screen_mask_type==SCREEN_MASK_SFC && w==256 && h==239) {
 		LOG_info("SFC 239-line overscan: crop 7 top + 8 bottom for 256x224 mask viewport\n");
@@ -839,6 +858,17 @@ static void flipGameGl(void) {
 		dst_rect.x = (device_width - dst_rect.w) / 2;
 		dst_rect.y = (device_height - dst_rect.h) / 2;
 	}
+	if (vid.screen_mask_type==SCREEN_MASK_GG &&
+		vid.blit->true_w==160 && vid.blit->true_h==144 &&
+		src_rect.w==160 && src_rect.h==144) {
+		// The Game Gear LCD uses non-square pixels. A 6x5 logical cell maps its
+		// 160x144 framebuffer to a faithful 4:3 960x720 image while keeping the
+		// aperture locked to source pixels.
+		dst_rect.x = 32;
+		dst_rect.y = 24;
+		dst_rect.w = 960;
+		dst_rect.h = 720;
+	}
 
 	int mask_matches_game = 0;
 	int effect_mode = SCREEN_EFFECT_NONE;
@@ -859,9 +889,16 @@ static void flipGameGl(void) {
 		mask_matches_game = 1;
 		effect_mode = vid.crt_shader_mode;
 	}
+	else if (vid.screen_mask_active && vid.screen_mask_type==SCREEN_MASK_GG &&
+		dst_rect.x==32 && dst_rect.y==24 && dst_rect.w==960 && dst_rect.h==720 &&
+		src_rect.w==160 && src_rect.h==144) {
+		mask_matches_game = 1;
+		effect_mode = SCREEN_EFFECT_GG_APERTURE;
+	}
 	if (effect_mode!=SCREEN_EFFECT_NONE && !vid.gl_effect_logged) {
-		const char* effect_name = "gba-aperture";
-		if (effect_mode!=SCREEN_EFFECT_GBA_APERTURE) {
+		const char* effect_name = effect_mode==SCREEN_EFFECT_GG_APERTURE
+			? "gg-aperture-6x5" : "gba-aperture";
+		if (effect_mode!=SCREEN_EFFECT_GBA_APERTURE && effect_mode!=SCREEN_EFFECT_GG_APERTURE) {
 			const int md = vid.screen_mask_type==SCREEN_MASK_MD;
 			effect_name = effect_mode==SCREEN_EFFECT_SFC_COMPOSITE
 				? (md ? "md-composite" : "sfc-composite")
@@ -975,6 +1012,14 @@ void PLAT_flip(SDL_Surface* IGNORED, int ignored) {
 		dst_rect->w = w;
 		dst_rect->h = h;
 	}
+	if (vid.screen_mask_type==SCREEN_MASK_GG &&
+		vid.blit->true_w==160 && vid.blit->true_h==144 &&
+		vid.blit->src_w==160 && vid.blit->src_h==144) {
+		dst_rect->x = 32;
+		dst_rect->y = 24;
+		dst_rect->w = 960;
+		dst_rect->h = 720;
+	}
 	
 	SDL_RenderCopy(vid.renderer, target, src_rect, dst_rect);
 
@@ -994,6 +1039,9 @@ void PLAT_flip(SDL_Surface* IGNORED, int ignored) {
 		}
 		else if (vid.screen_mask_type==SCREEN_MASK_MD) {
 			mask_matches_game = dst_rect->x==32 && dst_rect->y==48 && dst_rect->w==960 && dst_rect->h==672;
+		}
+		else if (vid.screen_mask_type==SCREEN_MASK_GG) {
+			mask_matches_game = dst_rect->x==32 && dst_rect->y==24 && dst_rect->w==960 && dst_rect->h==720;
 		}
 	}
 	if (mask_matches_game && vid.screen_mask) {

@@ -13,6 +13,7 @@ MASK_CONFIGS = {
     "GBA": (32, 64, 960, 640, "assets/ui/logo-gba.png", 240, 28, 392, 722, False),
     "SFC": (128, 48, 768, 672, "assets/ui/logo-snes.png", 260, 75, 26, 254, True),
     "MD": (32, 48, 960, 672, "assets/ui/logo-genesis.png", 142, 34, 441, 729, False),
+    "GG": (32, 24, 960, 720, "assets/ui/logo-game-gear.png", 0, 0, 0, 0, False),
 }
 MASK_COLORS = {
     "GB": ((48, 38, 89, 255), (129, 112, 213, 140)),
@@ -20,6 +21,7 @@ MASK_COLORS = {
     "GBA": ((48, 38, 89, 255), (129, 112, 213, 140)),
     "SFC": ((201, 199, 193, 255), (103, 78, 139, 210)),
     "MD": ((24, 24, 26, 255), (72, 72, 76, 255)),
+    "GG": ((20, 21, 23, 255), (70, 72, 76, 255)),
 }
 
 
@@ -174,7 +176,7 @@ def main():
     if screen_right < WIDTH:
         fill_rect(pixels, screen_right, screen_y, screen_right + 2, screen_bottom, edge_color)
 
-    if system in ("SFC", "MD"):
+    if system in ("SFC", "MD", "GG"):
         add_matte_texture(pixels)
     if system == "SFC":
         # A restrained echo of the North American controller's two-tone
@@ -183,6 +185,11 @@ def main():
         fill_circle(pixels, 979, 650, 14, (84, 57, 125, 255))
         fill_circle(pixels, 979, 618, 14, (155, 135, 185, 255))
         fill_circle(pixels, 947, 650, 14, (155, 135, 185, 255))
+
+    if target_width == 0 or target_height == 0:
+        write_png(output, WIDTH, HEIGHT, pixels)
+        print(output)
+        return
 
     logo_width, logo_height, logo = read_png(logo_path)
     render_width = target_height if rotate_logo else target_width

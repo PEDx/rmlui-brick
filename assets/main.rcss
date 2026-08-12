@@ -337,6 +337,12 @@ p {
     margin-top: 7px;
 }
 
+.logo-gg {
+    width: 82px;
+    height: 80px;
+    margin-top: -2px;
+}
+
 .slot-center .logo-gb {
     width: 200px;
     height: 36px;
@@ -362,6 +368,12 @@ p {
     width: 250px;
     height: 60px;
     margin-top: 4px;
+}
+
+.slot-center .logo-gg {
+    width: 104px;
+    height: 101px;
+    margin-top: -10px;
 }
 
 .position-dots {

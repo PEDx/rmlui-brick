@@ -55,6 +55,10 @@
                     <img class="console-image" src="icons/genesis-model1-simple.png"/>
                     <img class="console-logo logo-md" src="ui/logo-genesis.png"/>
                 </button>
+                <button id="model-gg" class="model-card model-gg">
+                    <img class="console-image" src="icons/game-gear-black-simple.png"/>
+                    <img class="console-logo logo-gg" src="ui/logo-game-gear.png"/>
+                </button>
             </div>
             <div class="position-dots">
                 <span id="position-0" class="position-dot"></span>
@@ -62,6 +66,7 @@
                 <span id="position-2" class="position-dot"></span>
                 <span id="position-3" class="position-dot"></span>
                 <span id="position-4" class="position-dot"></span>
+                <span id="position-5" class="position-dot"></span>
             </div>
         </main>
 
@@ -119,7 +124,7 @@
                 </div>
                 <div id="library-empty">
                     <img src="ui/folder.png"/>
-                    <span>请把 ROM 放入对应的 GB、GBC、GBA、SFC 或 MD 目录</span>
+                    <span>请把 ROM 放入对应的 GB、GBC、GBA、SFC、MD 或 GG 目录</span>
                 </div>
             </div>
             <div class="game-information">

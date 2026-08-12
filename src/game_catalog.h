@@ -9,6 +9,7 @@ enum class GameSystem {
     GameBoyAdvance,
     SuperNintendo,
     SegaGenesis,
+    SegaGameGear,
 };
 
 struct GameSystemInfo {

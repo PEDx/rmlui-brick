@@ -147,6 +147,9 @@ while :; do
         MD:*.md|MD:*.MD|MD:*.gen|MD:*.GEN|MD:*.bin|MD:*.BIN|MD:*.smd|MD:*.SMD|MD:*.zip|MD:*.ZIP)
             CORE_PATH="$CORES_PATH/picodrive_libretro.so"
             ;;
+        GG:*.gg|GG:*.GG|GG:*.zip|GG:*.ZIP)
+            CORE_PATH="$CORES_PATH/picodrive_libretro.so"
+            ;;
         *)
             echo "Rejected unsupported system or ROM extension: $SYSTEM_ID" >&2
             continue
