@@ -26,6 +26,7 @@ constexpr Uint64 kIdlePollMilliseconds = 16;
 constexpr Uint64 kBatteryPollMilliseconds = 10000;
 constexpr Uint64 kFrameLogMilliseconds = 60000;
 constexpr Uint64 kScreenshotDelayMilliseconds = 1250;
+constexpr Uint64 kConsoleCarouselTransitionMilliseconds = 180;
 constexpr Uint64 kGameRailTransitionMilliseconds = 240;
 constexpr int kGameVisibleCount = 4;
 constexpr int kGameTrackSlotCount = 6;
@@ -37,12 +38,21 @@ struct ModelInfo {
     GameSystem system;
 };
 
-constexpr std::array<ModelInfo, 4> kModels = {{
+constexpr std::array<ModelInfo, 5> kModels = {{
     {"model-gb", GameSystem::GameBoy},
     {"model-gbc", GameSystem::GameBoyColor},
     {"model-gba", GameSystem::GameBoyAdvance},
     {"model-sfc", GameSystem::SuperNintendo},
+    {"model-md", GameSystem::SegaGenesis},
 }};
+
+constexpr int WrapIndex(int index, int count)
+{
+    return (index % count + count) % count;
+}
+
+static_assert(WrapIndex(-1, 5) == 4, "carousel must wrap left");
+static_assert(WrapIndex(5, 5) == 0, "carousel must wrap right");
 
 struct Options {
     std::string assets = "assets";
@@ -219,9 +229,12 @@ public:
     bool Move(int delta)
     {
         if (view == View::Home) {
-            const int count = static_cast<int>(kModels.size());
-            selected_system = (selected_system + delta + count) % count;
-            UpdateCarousel();
+            const int direction = delta < 0 ? -1 : 1;
+            if (carousel_animation != CarouselAnimation::Idle) {
+                carousel_queued_steps += direction;
+                return true;
+            }
+            StartCarouselMove(direction);
             return true;
         }
 
@@ -297,10 +310,41 @@ public:
             }
         }
 
+        const Uint64 now = SDL_GetTicks64();
+        if (carousel_animation == CarouselAnimation::Positioning) {
+            // An input received while the app is idle is processed in the
+            // event-only branch of the main loop. Keep the off-screen setup
+            // unchanged for one render before assigning target slots, or the
+            // hidden card's teleport can be interpolated across the viewport.
+            carousel_animation = CarouselAnimation::Prepared;
+            changed = true;
+        } else if (carousel_animation == CarouselAnimation::Prepared) {
+            // The incoming card was rendered once just outside the viewport.
+            // Assign all target slots on the following frame so every move,
+            // including MD -> GB and GB -> MD, travels the short direction.
+            UpdateCarousel(carousel_direction);
+            if (Rml::Element* incoming = document->GetElementById(kModels[carousel_incoming].id))
+                incoming->SetClass("carousel-snap", false);
+            carousel_animation_deadline = now + kConsoleCarouselTransitionMilliseconds;
+            carousel_animation = CarouselAnimation::Sliding;
+            changed = true;
+        } else if (carousel_animation == CarouselAnimation::Sliding) {
+            if (now < carousel_animation_deadline) {
+                changed = true;
+            } else {
+                carousel_animation = CarouselAnimation::Idle;
+                if (carousel_queued_steps != 0) {
+                    const int direction = carousel_queued_steps < 0 ? -1 : 1;
+                    carousel_queued_steps -= direction;
+                    StartCarouselMove(direction);
+                }
+                changed = true;
+            }
+        }
+
         if (rail_animation == RailAnimation::Idle)
             return changed;
 
-        const Uint64 now = SDL_GetTicks64();
         if (rail_animation == RailAnimation::Revealing) {
             // The rail was populated while hidden. Reveal it once with all
             // transitions disabled so no stale selection state from the
@@ -362,11 +406,14 @@ public:
 
     bool IsAnimating() const
     {
-        return carousel_initialization_frames > 0 || rail_animation != RailAnimation::Idle;
+        return carousel_initialization_frames > 0 ||
+            carousel_animation != CarouselAnimation::Idle ||
+            rail_animation != RailAnimation::Idle;
     }
 
 private:
     enum class View { Home, Library };
+    enum class CarouselAnimation { Idle, Positioning, Prepared, Sliding };
     enum class RailAnimation { Idle, Revealing, Sliding, Snapping };
 
     void SetDisplay(const char* id, const char* value)
@@ -586,17 +633,41 @@ private:
         OpenLibrary(rom_path);
     }
 
-    void UpdateCarousel()
+    void StartCarouselMove(int direction)
     {
         const int count = static_cast<int>(kModels.size());
-        const int left = (selected_system + count - 1) % count;
-        const int right = (selected_system + 1) % count;
+        carousel_direction = direction;
+        selected_system = WrapIndex(selected_system + direction, count);
+        carousel_incoming = WrapIndex(selected_system + direction, count);
+
+        if (Rml::Element* incoming = document->GetElementById(kModels[carousel_incoming].id)) {
+            // Teleport the hidden card to the entering side with transitions
+            // disabled. It becomes visible only when UpdateAnimations assigns
+            // the adjacent slot on the next rendered frame.
+            incoming->SetClass("slot-left", false);
+            incoming->SetClass("slot-center", false);
+            incoming->SetClass("slot-right", false);
+            incoming->SetClass("slot-off-left", direction < 0);
+            incoming->SetClass("slot-off-right", direction > 0);
+            incoming->SetClass("carousel-snap", true);
+        }
+        carousel_animation = CarouselAnimation::Positioning;
+    }
+
+    void UpdateCarousel(int direction = 0)
+    {
+        const int count = static_cast<int>(kModels.size());
+        const int left = WrapIndex(selected_system - 1, count);
+        const int right = WrapIndex(selected_system + 1, count);
 
         for (int index = 0; index < count; ++index) {
             if (Rml::Element* card = document->GetElementById(kModels[index].id)) {
+                const bool hidden = index != left && index != selected_system && index != right;
                 card->SetClass("slot-left", index == left);
                 card->SetClass("slot-center", index == selected_system);
                 card->SetClass("slot-right", index == right);
+                card->SetClass("slot-off-left", hidden && direction > 0);
+                card->SetClass("slot-off-right", hidden && direction < 0);
                 card->SetClass("selected", index == selected_system);
                 if (index == selected_system)
                     card->Focus(true);
@@ -610,6 +681,11 @@ private:
     const Options& options;
     std::vector<GameInfo> games;
     int selected_system = 1;
+    int carousel_direction = 0;
+    int carousel_incoming = 0;
+    int carousel_queued_steps = 0;
+    Uint64 carousel_animation_deadline = 0;
+    CarouselAnimation carousel_animation = CarouselAnimation::Idle;
     std::size_t selected_game = 0;
     std::size_t visible_start = 0;
     std::size_t rail_target_start = 0;

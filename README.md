@@ -26,12 +26,12 @@ RML 可用 UI 元素、表单控件、滚动列表和掌机焦点联动，见
 - SDL2_image PNG 解码、透明图标和纹理上传工作正常；
 - 使用设备 `/usr/trimui/res/regular.ttf` 的阿里巴巴普惠体，中文显示正常；
 - 首页时间和 AXP2202 电池电量读取正常；
-- Home 已按 Figma `3:2` 实现 GB/GBC/GBA 横向机型 roll、选中放大和循环切换；
+- Home 已按 Figma `3:2` 实现 GB/GBC/GBA/SFC/MD 横向机型 roll、选中放大和循环切换；
 - 游戏库已按 Figma `3:7` 实现封面 rail、游戏数量、当前选择和底部操作栏；
-- 可扫描 `(GB)`/`GB`、`(GBC)`/`GBC`、`(GBA)`/`GBA` ROM 目录及 `.gb`、`.gbc`、`.gba`、`.zip`；
+- 可扫描 GB、GBC、GBA、SFC、MD ROM 目录及各平台对应扩展名和 `.zip`；
 - 封面按 `Roms/<系统>/.media/<ROM 文件名（不含扩展名）>.png` 自动匹配，不需要修改代码；
 - A 键进入游戏库或启动游戏，B 键返回；在首页按 B 可安全退出；
-- GB/GBC 使用 Gambatte，GBA 使用 gpSP；MinArch 退出后恢复原系统和游戏选择；
+- GB/GBC 使用 Gambatte，GBA 使用 gpSP，SFC 使用 Snes9x 2005 Plus，MD 使用 PicoDrive；MinArch 退出后恢复原系统和游戏选择；
 - SDL 将内置手柄识别为 `Xbox 360 Controller`；
 - 切换动画期间稳定约 60 FPS，静止后停止全屏重绘，仅保留 16 ms 输入轮询；
 - 时间只在分钟变化时刷新，电量每分钟检查一次，内容不变时不触发重绘；

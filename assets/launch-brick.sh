@@ -144,6 +144,9 @@ while :; do
         SFC:*.sfc|SFC:*.SFC|SFC:*.smc|SFC:*.SMC|SFC:*.zip|SFC:*.ZIP)
             CORE_PATH="$CORES_PATH/snes9x2005_plus_libretro.so"
             ;;
+        MD:*.md|MD:*.MD|MD:*.gen|MD:*.GEN|MD:*.bin|MD:*.BIN|MD:*.smd|MD:*.SMD|MD:*.zip|MD:*.ZIP)
+            CORE_PATH="$CORES_PATH/picodrive_libretro.so"
+            ;;
         *)
             echo "Rejected unsupported system or ROM extension: $SYSTEM_ID" >&2
             continue

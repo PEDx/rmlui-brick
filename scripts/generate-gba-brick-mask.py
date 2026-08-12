@@ -12,12 +12,14 @@ MASK_CONFIGS = {
     "GBC": (112, 24, 800, 720, "assets/ui/logo-gbc.png", 145, 60, 26, 311, True),
     "GBA": (32, 64, 960, 640, "assets/ui/logo-gba.png", 240, 28, 392, 722, False),
     "SFC": (128, 48, 768, 672, "assets/ui/logo-snes.png", 260, 75, 26, 254, True),
+    "MD": (32, 48, 960, 672, "assets/ui/logo-genesis.png", 142, 34, 441, 729, False),
 }
 MASK_COLORS = {
     "GB": ((48, 38, 89, 255), (129, 112, 213, 140)),
     "GBC": ((48, 38, 89, 255), (129, 112, 213, 140)),
     "GBA": ((48, 38, 89, 255), (129, 112, 213, 140)),
     "SFC": ((201, 199, 193, 255), (103, 78, 139, 210)),
+    "MD": ((24, 24, 26, 255), (72, 72, 76, 255)),
 }
 
 
@@ -172,8 +174,9 @@ def main():
     if screen_right < WIDTH:
         fill_rect(pixels, screen_right, screen_y, screen_right + 2, screen_bottom, edge_color)
 
-    if system == "SFC":
+    if system in ("SFC", "MD"):
         add_matte_texture(pixels)
+    if system == "SFC":
         # A restrained echo of the North American controller's two-tone
         # purple face buttons makes the mask identifiable without decoration.
         fill_circle(pixels, 947, 618, 14, (84, 57, 125, 255))
@@ -197,6 +200,10 @@ def main():
             source = tuple(logo[(source_y * logo_width + source_x) * 4:(source_y * logo_width + source_x + 1) * 4])
             if source[3] == 0:
                 continue
+            if system == "MD":
+                # The black Genesis wordmark remains readable on the charcoal
+                # bezel as the restrained Model 1 red accent.
+                source = (220, 38, 51, source[3])
             index = ((logo_y + y) * WIDTH + logo_x + x) * 4
             destination = tuple(pixels[index:index + 4])
             pixels[index:index + 4] = bytes(blend(destination, source))

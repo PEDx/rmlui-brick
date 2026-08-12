@@ -8,6 +8,7 @@ enum class GameSystem {
     GameBoyColor,
     GameBoyAdvance,
     SuperNintendo,
+    SegaGenesis,
 };
 
 struct GameSystemInfo {

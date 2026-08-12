@@ -249,6 +249,26 @@ p {
     transition: none;
 }
 
+.model-card.carousel-snap {
+    transition: none;
+}
+
+.model-card.slot-off-left,
+.model-card.slot-off-right {
+    top: 139px;
+    width: 224px;
+    height: 286px;
+    opacity: 0.48;
+}
+
+.model-card.slot-off-left {
+    left: -244px;
+}
+
+.model-card.slot-off-right {
+    left: 964px;
+}
+
 .model-card.slot-left {
     left: 4px;
     top: 139px;
@@ -311,6 +331,12 @@ p {
     margin-top: 4px;
 }
 
+.logo-md {
+    width: 190px;
+    height: 46px;
+    margin-top: 7px;
+}
+
 .slot-center .logo-gb {
     width: 200px;
     height: 36px;
@@ -330,6 +356,12 @@ p {
     width: 250px;
     height: 72px;
     margin-top: -2px;
+}
+
+.slot-center .logo-md {
+    width: 250px;
+    height: 60px;
+    margin-top: 4px;
 }
 
 .position-dots {

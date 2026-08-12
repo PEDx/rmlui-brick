@@ -28,6 +28,7 @@ LCD_CONFIGS = {
     "GB": (800, 720, GB_BRIGHTNESS, "gb-gbc-lcd-5x.png"),
     "GBC": (800, 720, GB_BRIGHTNESS, "gb-gbc-lcd-5x.png"),
     "SFC": (768, 672, SFC_BRIGHTNESS, "sfc-crt-3x.png"),
+    "MD": (960, 672, SFC_BRIGHTNESS, "md-crt-3x.png"),
 }
 
 

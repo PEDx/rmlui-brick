@@ -55,7 +55,9 @@ static struct VID_Context {
 	int sharpness;
 	int screen_mask_type;
 	int screen_mask_active;
-	int use_gba_gl;
+	int use_game_gl;
+	int crt_shader_mode;
+	int gl_effect_logged;
 	SDL_GLContext gl_context;
 	GLuint gl_program;
 	GLuint gl_game_texture;
@@ -63,9 +65,10 @@ static struct VID_Context {
 	GLint gl_position;
 	GLint gl_texcoord;
 	GLint gl_sampler;
-	GLint gl_aperture_enabled;
+	GLint gl_effect_mode;
 	GLint gl_game_viewport;
 	GLint gl_output_height;
+	GLint gl_texture_size;
 	int gl_texture_width;
 	int gl_texture_height;
 	void* gl_upload_buffer;
@@ -78,13 +81,22 @@ enum {
 	SCREEN_MASK_GBC,
 	SCREEN_MASK_GBA,
 	SCREEN_MASK_SFC,
+	SCREEN_MASK_MD,
+};
+
+enum {
+	SCREEN_EFFECT_NONE = 0,
+	SCREEN_EFFECT_GBA_APERTURE,
+	SCREEN_EFFECT_SFC_SHARP,
+	SCREEN_EFFECT_SFC_CRT,
+	SCREEN_EFFECT_SFC_COMPOSITE,
 };
 
 static int device_width;
 static int device_height;
 static int device_pitch;
 
-static const char* gba_vertex_shader =
+static const char* game_vertex_shader =
 	"attribute vec2 a_position;\n"
 	"attribute vec2 a_texcoord;\n"
 	"varying vec2 v_texcoord;\n"
@@ -93,20 +105,21 @@ static const char* gba_vertex_shader =
 	"  v_texcoord = a_texcoord;\n"
 	"}\n";
 
-static const char* gba_fragment_shader =
+static const char* game_fragment_shader =
 	"#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
 	"precision highp float;\n"
 	"#else\n"
 	"precision mediump float;\n"
 	"#endif\n"
 	"uniform sampler2D u_texture;\n"
-	"uniform float u_aperture_enabled;\n"
+	"uniform float u_effect_mode;\n"
 	"uniform vec4 u_game_viewport;\n"
 	"uniform float u_output_height;\n"
+	"uniform vec2 u_texture_size;\n"
 	"varying vec2 v_texcoord;\n"
 	"void main() {\n"
 	"  vec4 color = texture2D(u_texture, v_texcoord);\n"
-	"  if (u_aperture_enabled > 0.5) {\n"
+	"  if (u_effect_mode > 0.5 && u_effect_mode < 1.5) {\n"
 	"    vec2 game_pos = vec2(\n"
 	"      gl_FragCoord.x - u_game_viewport.x,\n"
 	"      (u_output_height - gl_FragCoord.y) - u_game_viewport.y\n"
@@ -116,6 +129,52 @@ static const char* gba_fragment_shader =
 	"    float edge_y = (1.0 - step(0.5, local_pixel.y)) + step(2.5, local_pixel.y);\n"
 	"    float aperture = 1.0 - 0.10 * (edge_x + edge_y);\n"
 	"    color.rgb *= aperture;\n"
+	"  } else if (u_effect_mode > 1.5) {\n"
+	"    vec2 texel = 1.0 / u_texture_size;\n"
+	"    vec3 left = texture2D(u_texture, v_texcoord - vec2(texel.x, 0.0)).rgb;\n"
+	"    vec3 right = texture2D(u_texture, v_texcoord + vec2(texel.x, 0.0)).rgb;\n"
+	"    vec3 up = texture2D(u_texture, v_texcoord - vec2(0.0, texel.y)).rgb;\n"
+	"    vec3 down = texture2D(u_texture, v_texcoord + vec2(0.0, texel.y)).rgb;\n"
+	"    float consumer_enabled = step(2.5, u_effect_mode);\n"
+	"    float composite_enabled = step(3.5, u_effect_mode);\n"
+	"    float side_weight = mix(0.0, 0.04, consumer_enabled);\n"
+	"    side_weight = mix(side_weight, 0.14, composite_enabled);\n"
+	"    vec3 rgb = color.rgb * (1.0 - 2.0 * side_weight)\n"
+	"             + (left + right) * side_weight;\n"
+	"    if (u_effect_mode > 3.5) {\n"
+	"      vec3 composite = vec3(left.r, rgb.g, right.b);\n"
+	"      rgb = mix(rgb, composite, 0.22);\n"
+	"    }\n"
+	"    vec2 game_pos = vec2(\n"
+	"      gl_FragCoord.x - u_game_viewport.x,\n"
+	"      (u_output_height - gl_FragCoord.y) - u_game_viewport.y\n"
+	"    );\n"
+	"    vec2 local_pixel = mod(floor(game_pos), 3.0);\n"
+	"    float mid_loss = mix(0.10, 0.16, consumer_enabled);\n"
+	"    float bottom_loss = mix(0.22, 0.24, consumer_enabled);\n"
+	"    float scanline = 1.0 - mid_loss * step(0.5, local_pixel.y)\n"
+	"                         - bottom_loss * step(1.5, local_pixel.y);\n"
+	"    float mask_column = mod(floor(game_pos.x * 0.5), 3.0);\n"
+	"    float red_column = 1.0 - step(0.5, mask_column);\n"
+	"    float blue_column = step(1.5, mask_column);\n"
+	"    float green_column = 1.0 - red_column - blue_column;\n"
+	"    float phosphor_base = mix(0.98, 0.975, consumer_enabled);\n"
+	"    vec3 phosphor = vec3(phosphor_base)\n"
+	"                  + 3.0 * (1.0 - phosphor_base)\n"
+	"                  * vec3(red_column, green_column, blue_column);\n"
+	"    vec3 bloom_source = (left + right + up + down) * 0.25;\n"
+	"    float bloom_strength = mix(0.02, 0.055, consumer_enabled);\n"
+	"    bloom_strength = mix(bloom_strength, 0.08, composite_enabled);\n"
+	"    vec3 bloom = max(bloom_source - vec3(0.62), vec3(0.0)) * bloom_strength;\n"
+	"    vec2 screen_pos = game_pos / u_game_viewport.zw * 2.0 - 1.0;\n"
+	"    float vignette_strength = mix(0.0, 0.055, consumer_enabled);\n"
+	"    float vignette = 1.0 - vignette_strength * dot(screen_pos, screen_pos);\n"
+	"    rgb *= scanline * phosphor;\n"
+	"    float gamma_power = mix(0.92, 0.90, consumer_enabled);\n"
+	"    float brightness = mix(1.10, 1.14, consumer_enabled);\n"
+	"    rgb = pow(max(rgb, vec3(0.0)), vec3(gamma_power));\n"
+	"    rgb = (((rgb - vec3(0.5)) * 1.04 + vec3(0.5)) * brightness + bloom) * vignette;\n"
+	"    color.rgb = clamp(rgb, 0.0, 1.0);\n"
 	"  }\n"
 	"  gl_FragColor = color;\n"
 	"}\n";
@@ -129,23 +188,23 @@ static GLuint compileShader(GLenum type, const char* source) {
 	if (!compiled) {
 		char log[512] = {0};
 		glGetShaderInfoLog(shader, sizeof(log) - 1, NULL, log);
-		LOG_info("GBA shader compile failed: %s\n", log);
+		LOG_info("Game shader compile failed: %s\n", log);
 		glDeleteShader(shader);
 		return 0;
 	}
 	return shader;
 }
 
-static int initGbaGl(void) {
+static int initGameGl(void) {
 	vid.gl_context = SDL_GL_CreateContext(vid.window);
 	if (!vid.gl_context) {
-		LOG_info("GBA GLES context is unavailable: %s\n", SDL_GetError());
+		LOG_info("Game GLES context is unavailable: %s\n", SDL_GetError());
 		return 0;
 	}
 	SDL_GL_SetSwapInterval(1);
 
-	GLuint vertex = compileShader(GL_VERTEX_SHADER, gba_vertex_shader);
-	GLuint fragment = compileShader(GL_FRAGMENT_SHADER, gba_fragment_shader);
+	GLuint vertex = compileShader(GL_VERTEX_SHADER, game_vertex_shader);
+	GLuint fragment = compileShader(GL_FRAGMENT_SHADER, game_fragment_shader);
 	if (!vertex || !fragment) return 0;
 
 	vid.gl_program = glCreateProgram();
@@ -159,16 +218,17 @@ static int initGbaGl(void) {
 	if (!linked) {
 		char log[512] = {0};
 		glGetProgramInfoLog(vid.gl_program, sizeof(log) - 1, NULL, log);
-		LOG_info("GBA shader link failed: %s\n", log);
+		LOG_info("Game shader link failed: %s\n", log);
 		return 0;
 	}
 
 	vid.gl_position = glGetAttribLocation(vid.gl_program, "a_position");
 	vid.gl_texcoord = glGetAttribLocation(vid.gl_program, "a_texcoord");
 	vid.gl_sampler = glGetUniformLocation(vid.gl_program, "u_texture");
-	vid.gl_aperture_enabled = glGetUniformLocation(vid.gl_program, "u_aperture_enabled");
+	vid.gl_effect_mode = glGetUniformLocation(vid.gl_program, "u_effect_mode");
 	vid.gl_game_viewport = glGetUniformLocation(vid.gl_program, "u_game_viewport");
 	vid.gl_output_height = glGetUniformLocation(vid.gl_program, "u_output_height");
+	vid.gl_texture_size = glGetUniformLocation(vid.gl_program, "u_texture_size");
 
 	glGenTextures(1, &vid.gl_game_texture);
 	glBindTexture(GL_TEXTURE_2D, vid.gl_game_texture);
@@ -179,11 +239,11 @@ static int initGbaGl(void) {
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	glViewport(0, 0, FIXED_WIDTH, FIXED_HEIGHT);
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	LOG_info("GBA GLES2 aperture initialized: %s / %s\n", glGetString(GL_VENDOR), glGetString(GL_RENDERER));
+	LOG_info("Game GLES2 screen effects initialized: %s / %s\n", glGetString(GL_VENDOR), glGetString(GL_RENDERER));
 	return 1;
 }
 
-static int uploadGbaOverlay(SDL_Surface* source) {
+static int uploadGameOverlay(SDL_Surface* source) {
 	SDL_Surface* rgba = SDL_ConvertSurfaceFormat(source, SDL_PIXELFORMAT_RGBA32, 0);
 	if (!rgba) return 0;
 	glGenTextures(1, &vid.gl_overlay_texture);
@@ -197,7 +257,7 @@ static int uploadGbaOverlay(SDL_Surface* source) {
 	return glGetError() == GL_NO_ERROR;
 }
 
-static void uploadGbaFrame(const void* pixels, int width, int height, int pitch) {
+static void uploadGameFrame(const void* pixels, int width, int height, int pitch) {
 	const void* upload = pixels;
 	size_t row_size = (size_t)width * sizeof(uint16_t);
 	size_t required = row_size * height;
@@ -225,8 +285,8 @@ static void uploadGbaFrame(const void* pixels, int width, int height, int pitch)
 	}
 }
 
-static void drawGbaTexture(GLuint texture, const SDL_Rect* src, int texture_width, int texture_height,
-	const SDL_Rect* dst, int aperture, int blend) {
+static void drawGameTexture(GLuint texture, const SDL_Rect* src, int texture_width, int texture_height,
+	const SDL_Rect* dst, int effect_mode, int blend) {
 	const GLfloat left = -1.0f + 2.0f * dst->x / device_width;
 	const GLfloat right = -1.0f + 2.0f * (dst->x + dst->w) / device_width;
 	const GLfloat top = 1.0f - 2.0f * dst->y / device_height;
@@ -241,9 +301,10 @@ static void drawGbaTexture(GLuint texture, const SDL_Rect* src, int texture_widt
 	glUseProgram(vid.gl_program);
 	glBindTexture(GL_TEXTURE_2D, texture);
 	glUniform1i(vid.gl_sampler, 0);
-	glUniform1f(vid.gl_aperture_enabled, aperture ? 1.0f : 0.0f);
+	glUniform1f(vid.gl_effect_mode, (GLfloat)effect_mode);
 	glUniform4f(vid.gl_game_viewport, dst->x, dst->y, dst->w, dst->h);
 	glUniform1f(vid.gl_output_height, (GLfloat)device_height);
+	glUniform2f(vid.gl_texture_size, (GLfloat)texture_width, (GLfloat)texture_height);
 	if (blend) {
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -256,7 +317,7 @@ static void drawGbaTexture(GLuint texture, const SDL_Rect* src, int texture_widt
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 
-static void destroyGbaGl(void) {
+static void destroyGameGl(void) {
 	if (vid.gl_game_texture) glDeleteTextures(1, &vid.gl_game_texture);
 	if (vid.gl_overlay_texture) glDeleteTextures(1, &vid.gl_overlay_texture);
 	if (vid.gl_program) glDeleteProgram(vid.gl_program);
@@ -271,7 +332,22 @@ SDL_Surface* PLAT_initVideo(void) {
 	char* device = getenv("DEVICE");
 	is_brick = device && strcmp(device, "brick") == 0;
 	const char* system = getenv("MINARCH_SYSTEM");
-	int request_gba_gl = is_brick && system && strcmp(system, "GBA") == 0;
+	int request_game_gl = is_brick && system &&
+		(strcmp(system, "GBA") == 0 || strcmp(system, "SFC") == 0 || strcmp(system, "MD") == 0);
+	vid.crt_shader_mode = SCREEN_EFFECT_SFC_SHARP;
+	const char* crt_shader = system && strcmp(system, "MD") == 0
+		? getenv("MINARCH_MD_SHADER")
+		: getenv("MINARCH_SFC_SHADER");
+	if (crt_shader && strcmp(crt_shader, "composite") == 0) {
+		vid.crt_shader_mode = SCREEN_EFFECT_SFC_COMPOSITE;
+	}
+	else if (crt_shader &&
+		(strcmp(crt_shader, "crt") == 0 || strcmp(crt_shader, "consumer") == 0)) {
+		vid.crt_shader_mode = SCREEN_EFFECT_SFC_CRT;
+	}
+	else if (crt_shader && strcmp(crt_shader, "off") == 0) {
+		vid.crt_shader_mode = SCREEN_EFFECT_NONE;
+	}
 	// LOG_info("DEVICE: %s is_brick: %i\n", device, is_brick);
 	
 	SDL_InitSubSystem(SDL_INIT_VIDEO);
@@ -309,29 +385,29 @@ SDL_Surface* PLAT_initVideo(void) {
 	int w = FIXED_WIDTH;
 	int h = FIXED_HEIGHT;
 	int p = FIXED_PITCH;
-	if (request_gba_gl) {
+	if (request_game_gl) {
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 		SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	}
 	vid.window = SDL_CreateWindow("", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, w, h,
-		SDL_WINDOW_SHOWN | (request_gba_gl ? SDL_WINDOW_OPENGL : 0));
-	vid.use_gba_gl = request_gba_gl && initGbaGl();
-	if (request_gba_gl && !vid.use_gba_gl) {
-		destroyGbaGl();
+		SDL_WINDOW_SHOWN | (request_game_gl ? SDL_WINDOW_OPENGL : 0));
+	vid.use_game_gl = request_game_gl && initGameGl();
+	if (request_game_gl && !vid.use_game_gl) {
+		destroyGameGl();
 		SDL_DestroyWindow(vid.window);
 		vid.window = SDL_CreateWindow("", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, w, h, SDL_WINDOW_SHOWN);
-		LOG_info("Falling back to SDL renderer for GBA\n");
+		LOG_info("Falling back to SDL renderer for %s\n", system ? system : "game");
 	}
-	vid.renderer = vid.use_gba_gl ? NULL : SDL_CreateRenderer(vid.window,-1,SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
+	vid.renderer = vid.use_game_gl ? NULL : SDL_CreateRenderer(vid.window,-1,SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
 	
 	// SDL_RendererInfo info;
 	// SDL_GetRendererInfo(vid.renderer, &info);
 	// LOG_info("Current render driver: %s\n", info.name);
 	
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,"0");
-	vid.texture = vid.use_gba_gl ? NULL : SDL_CreateTexture(vid.renderer,SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING, w,h);
+	vid.texture = vid.use_game_gl ? NULL : SDL_CreateTexture(vid.renderer,SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING, w,h);
 	vid.target	= NULL; // only needed for non-native sizes
 	
 	// SDL_SetTextureScaleMode(vid.texture, SDL_ScaleModeNearest);
@@ -366,7 +442,20 @@ SDL_Surface* PLAT_initVideo(void) {
 		else if (system && strcmp(system, "SFC") == 0) {
 			vid.screen_mask_type = SCREEN_MASK_SFC;
 			mask_name = "sfc-brick-mask.png";
-			lcd_name = "sfc-crt-3x.png";
+			if (!vid.use_game_gl) lcd_name = "sfc-crt-3x.png";
+			const char* preset = vid.crt_shader_mode==SCREEN_EFFECT_SFC_COMPOSITE ? "composite" :
+				(vid.crt_shader_mode==SCREEN_EFFECT_SFC_CRT ? "crt" :
+				(vid.crt_shader_mode==SCREEN_EFFECT_NONE ? "off" : "sharp"));
+			LOG_info("SFC screen shader preset: %s\n", preset);
+		}
+		else if (system && strcmp(system, "MD") == 0) {
+			vid.screen_mask_type = SCREEN_MASK_MD;
+			mask_name = "md-brick-mask.png";
+			if (!vid.use_game_gl) lcd_name = "md-crt-3x.png";
+			const char* preset = vid.crt_shader_mode==SCREEN_EFFECT_SFC_COMPOSITE ? "composite" :
+				(vid.crt_shader_mode==SCREEN_EFFECT_SFC_CRT ? "crt" :
+				(vid.crt_shader_mode==SCREEN_EFFECT_NONE ? "off" : "sharp"));
+			LOG_info("MD screen shader preset: %s\n", preset);
 		}
 
 		if (mask_name) {
@@ -374,8 +463,8 @@ SDL_Surface* PLAT_initVideo(void) {
 			snprintf(mask_path, sizeof(mask_path), "%s/%s", RES_PATH, mask_name);
 			SDL_Surface* mask_surface = IMG_Load(mask_path);
 			if (mask_surface) {
-				if (vid.use_gba_gl) {
-					if (!uploadGbaOverlay(mask_surface)) LOG_info("GBA GLES overlay upload failed\n");
+				if (vid.use_game_gl) {
+					if (!uploadGameOverlay(mask_surface)) LOG_info("Game GLES overlay upload failed\n");
 				}
 				else {
 					vid.screen_mask = SDL_CreateTextureFromSurface(vid.renderer, mask_surface);
@@ -417,7 +506,7 @@ SDL_Surface* PLAT_initVideo(void) {
 }
 
 static void clearVideo(void) {
-	if (vid.use_gba_gl) {
+	if (vid.use_game_gl) {
 		for (int i=0; i<3; i++) {
 			glClear(GL_COLOR_BUFFER_BIT);
 			SDL_FillRect(vid.screen, NULL, 0);
@@ -443,7 +532,7 @@ void PLAT_quitVideo(void) {
 
 	SDL_FreeSurface(vid.screen);
 	SDL_FreeSurface(vid.buffer);
-	if (vid.use_gba_gl) destroyGbaGl();
+	if (vid.use_game_gl) destroyGameGl();
 	else {
 		if (vid.target) SDL_DestroyTexture(vid.target);
 		if (vid.effect) SDL_DestroyTexture(vid.effect);
@@ -463,7 +552,7 @@ void PLAT_clearVideo(SDL_Surface* screen) {
 }
 void PLAT_clearAll(void) {
 	PLAT_clearVideo(vid.screen); // TODO: revist
-	if (vid.use_gba_gl) glClear(GL_COLOR_BUFFER_BIT);
+	if (vid.use_game_gl) glClear(GL_COLOR_BUFFER_BIT);
 	else SDL_RenderClear(vid.renderer);
 }
 
@@ -477,8 +566,15 @@ static void resizeVideo(int w, int h, int p) {
 	if (w==vid.width && h==vid.height && p==vid.pitch) return;
 	vid.screen_mask_active = is_brick &&
 		((vid.screen_mask_type==SCREEN_MASK_GBA && w==240 && h==160) ||
-		 (vid.screen_mask_type==SCREEN_MASK_SFC && w==256 && h==224) ||
+		 (vid.screen_mask_type==SCREEN_MASK_SFC && w==256 && (h==224 || h==239)) ||
+		 (vid.screen_mask_type==SCREEN_MASK_MD && w==320 && (h==224 || h==240)) ||
 		 (vid.screen_mask_type!=SCREEN_MASK_NONE && w==160 && h==144));
+	if (vid.screen_mask_type==SCREEN_MASK_SFC && w==256 && h==239) {
+		LOG_info("SFC 239-line overscan: crop 7 top + 8 bottom for 256x224 mask viewport\n");
+	}
+	if (vid.screen_mask_type==SCREEN_MASK_MD && w==320 && h==240) {
+		LOG_info("MD 240-line overscan: crop 8 top + 8 bottom for 320x224 mask viewport\n");
+	}
 	
 	// TODO: minarch disables crisp (and nn upscale before linear downscale) when native, is this true?
 	
@@ -489,7 +585,7 @@ static void resizeVideo(int w, int h, int p) {
 	LOG_info("resizeVideo(%i,%i,%i) hard_scale: %i crisp: %i\n",w,h,p, hard_scale,vid.sharpness==SHARPNESS_CRISP);
 
 	SDL_FreeSurface(vid.buffer);
-	if (vid.use_gba_gl) {
+	if (vid.use_game_gl) {
 		vid.buffer = SDL_CreateRGBSurfaceFrom(NULL, w,h, FIXED_DEPTH, p, RGBA_MASK_565);
 		vid.width = w;
 		vid.height = h;
@@ -685,30 +781,50 @@ scaler_t PLAT_getScaler(GFX_Renderer* renderer) {
 
 void PLAT_blitRenderer(GFX_Renderer* renderer) {
 	vid.blit = renderer;
-	if (vid.use_gba_gl) glClear(GL_COLOR_BUFFER_BIT);
+	if (vid.use_game_gl) glClear(GL_COLOR_BUFFER_BIT);
 	else SDL_RenderClear(vid.renderer);
 	resizeVideo(vid.blit->true_w,vid.blit->true_h,vid.blit->src_p);
 }
 
-static void flipGbaGl(void) {
+static void flipGameGl(void) {
 	glViewport(0, 0, device_width, device_height);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glActiveTexture(GL_TEXTURE0);
 
 	if (!vid.blit) {
-		uploadGbaFrame(vid.screen->pixels, device_width, device_height, vid.screen->pitch);
+		uploadGameFrame(vid.screen->pixels, device_width, device_height, vid.screen->pitch);
 		SDL_Rect full = {0, 0, device_width, device_height};
-		drawGbaTexture(vid.gl_game_texture, &full, device_width, device_height, &full, 0, 0);
+		drawGameTexture(vid.gl_game_texture, &full, device_width, device_height, &full, SCREEN_EFFECT_NONE, 0);
 		SDL_GL_SwapWindow(vid.window);
 		return;
 	}
 
-	uploadGbaFrame(vid.blit->src, vid.blit->true_w, vid.blit->true_h, vid.blit->src_p);
+	uploadGameFrame(vid.blit->src, vid.blit->true_w, vid.blit->true_h, vid.blit->src_p);
 	SDL_Rect src_rect = {vid.blit->src_x, vid.blit->src_y, vid.blit->src_w, vid.blit->src_h};
+	const int crop_sfc_overscan =
+		vid.screen_mask_type==SCREEN_MASK_SFC &&
+		vid.blit->aspect==0 &&
+		vid.blit->true_w==256 && vid.blit->true_h==239 &&
+		vid.blit->src_x==0 && vid.blit->src_y==0 &&
+		vid.blit->src_w==256 && vid.blit->src_h==239;
+	const int crop_md_overscan =
+		vid.screen_mask_type==SCREEN_MASK_MD &&
+		vid.blit->aspect==0 &&
+		vid.blit->true_w==320 && vid.blit->true_h==240 &&
+		vid.blit->src_x==0 && vid.blit->src_y==0 &&
+		vid.blit->src_w==320 && vid.blit->src_h==240;
+	if (crop_sfc_overscan) {
+		src_rect.y += 7;
+		src_rect.h = 224;
+	}
+	else if (crop_md_overscan) {
+		src_rect.y += 8;
+		src_rect.h = 224;
+	}
 	SDL_Rect dst_rect = {0, 0, device_width, device_height};
 	if (vid.blit->aspect==0) {
 		dst_rect.w = vid.blit->src_w * vid.blit->scale;
-		dst_rect.h = vid.blit->src_h * vid.blit->scale;
+		dst_rect.h = (crop_sfc_overscan || crop_md_overscan ? 224 : vid.blit->src_h) * vid.blit->scale;
 		dst_rect.x = (device_width - dst_rect.w) / 2;
 		dst_rect.y = (device_height - dst_rect.h) / 2;
 	}
@@ -724,14 +840,45 @@ static void flipGbaGl(void) {
 		dst_rect.y = (device_height - dst_rect.h) / 2;
 	}
 
-	int aperture_active = vid.screen_mask_active &&
-		dst_rect.x==32 && dst_rect.y==64 && dst_rect.w==960 && dst_rect.h==640;
-	drawGbaTexture(vid.gl_game_texture, &src_rect, vid.blit->true_w, vid.blit->true_h,
-		&dst_rect, aperture_active, 0);
+	int mask_matches_game = 0;
+	int effect_mode = SCREEN_EFFECT_NONE;
+	if (vid.screen_mask_active && vid.screen_mask_type==SCREEN_MASK_GBA &&
+		dst_rect.x==32 && dst_rect.y==64 && dst_rect.w==960 && dst_rect.h==640) {
+		mask_matches_game = 1;
+		effect_mode = SCREEN_EFFECT_GBA_APERTURE;
+	}
+	else if (vid.screen_mask_active && vid.screen_mask_type==SCREEN_MASK_SFC &&
+		dst_rect.x==128 && dst_rect.y==48 && dst_rect.w==768 && dst_rect.h==672 &&
+		src_rect.w==256 && src_rect.h==224) {
+		mask_matches_game = 1;
+		effect_mode = vid.crt_shader_mode;
+	}
+	else if (vid.screen_mask_active && vid.screen_mask_type==SCREEN_MASK_MD &&
+		dst_rect.x==32 && dst_rect.y==48 && dst_rect.w==960 && dst_rect.h==672 &&
+		src_rect.w==320 && src_rect.h==224) {
+		mask_matches_game = 1;
+		effect_mode = vid.crt_shader_mode;
+	}
+	if (effect_mode!=SCREEN_EFFECT_NONE && !vid.gl_effect_logged) {
+		const char* effect_name = "gba-aperture";
+		if (effect_mode!=SCREEN_EFFECT_GBA_APERTURE) {
+			const int md = vid.screen_mask_type==SCREEN_MASK_MD;
+			effect_name = effect_mode==SCREEN_EFFECT_SFC_COMPOSITE
+				? (md ? "md-composite" : "sfc-composite")
+				: (effect_mode==SCREEN_EFFECT_SFC_CRT
+					? (md ? "md-crt" : "sfc-crt")
+					: (md ? "md-sharp" : "sfc-sharp"));
+		}
+		LOG_info("Game shader active: %s viewport %d,%d %dx%d source %dx%d\n",
+			effect_name, dst_rect.x, dst_rect.y, dst_rect.w, dst_rect.h, src_rect.w, src_rect.h);
+		vid.gl_effect_logged = 1;
+	}
+	drawGameTexture(vid.gl_game_texture, &src_rect, vid.blit->true_w, vid.blit->true_h,
+		&dst_rect, effect_mode, 0);
 
-	if (aperture_active && vid.gl_overlay_texture) {
+	if (mask_matches_game && vid.gl_overlay_texture) {
 		SDL_Rect full = {0, 0, device_width, device_height};
-		drawGbaTexture(vid.gl_overlay_texture, &full, device_width, device_height, &full, 0, 1);
+		drawGameTexture(vid.gl_overlay_texture, &full, device_width, device_height, &full, SCREEN_EFFECT_NONE, 1);
 	}
 
 	SDL_GL_SwapWindow(vid.window);
@@ -739,8 +886,8 @@ static void flipGbaGl(void) {
 }
 
 void PLAT_flip(SDL_Surface* IGNORED, int ignored) {
-	if (vid.use_gba_gl) {
-		flipGbaGl();
+	if (vid.use_game_gl) {
+		flipGameGl();
 		return;
 	}
 	
@@ -761,6 +908,30 @@ void PLAT_flip(SDL_Surface* IGNORED, int ignored) {
 	int y = vid.blit->src_y;
 	int w = vid.blit->src_w;
 	int h = vid.blit->src_h;
+	const int crop_sfc_overscan =
+		vid.screen_mask_type==SCREEN_MASK_SFC &&
+		vid.blit->aspect==0 &&
+		vid.blit->true_w==256 && vid.blit->true_h==239 &&
+		vid.blit->src_x==0 && vid.blit->src_y==0 &&
+		vid.blit->src_w==256 && vid.blit->src_h==239;
+	const int crop_md_overscan =
+		vid.screen_mask_type==SCREEN_MASK_MD &&
+		vid.blit->aspect==0 &&
+		vid.blit->true_w==320 && vid.blit->true_h==240 &&
+		vid.blit->src_x==0 && vid.blit->src_y==0 &&
+		vid.blit->src_w==320 && vid.blit->src_h==240;
+	if (crop_sfc_overscan) {
+		// Snes9x can switch from the common 224-line frame to the 239-line
+		// overscan mode after startup. Keep the Brick's 3x 256x224 viewport
+		// stable by removing 7 lines above and 8 below instead of stretching
+		// the CRT aperture or disabling the console mask.
+		y += 7;
+		h = 224;
+	}
+	else if (crop_md_overscan) {
+		y += 8;
+		h = 224;
+	}
 	if (vid.sharpness==SHARPNESS_CRISP) {
 		SDL_SetRenderTarget(vid.renderer,vid.target);
 		SDL_RenderCopy(vid.renderer, vid.texture, NULL,NULL);
@@ -778,7 +949,7 @@ void PLAT_flip(SDL_Surface* IGNORED, int ignored) {
 		// LOG_info("src_rect %i,%i %ix%i\n",src_rect->x,src_rect->y,src_rect->w,src_rect->h);
 		
 		int w = vid.blit->src_w * vid.blit->scale;
-		int h = vid.blit->src_h * vid.blit->scale;
+		int h = (crop_sfc_overscan || crop_md_overscan ? 224 : vid.blit->src_h) * vid.blit->scale;
 		int x = (device_width - w) / 2;
 		int y = (device_height - h) / 2;
 		dst_rect->x = x;
@@ -820,6 +991,9 @@ void PLAT_flip(SDL_Surface* IGNORED, int ignored) {
 		}
 		else if (vid.screen_mask_type==SCREEN_MASK_SFC) {
 			mask_matches_game = dst_rect->x==128 && dst_rect->y==48 && dst_rect->w==768 && dst_rect->h==672;
+		}
+		else if (vid.screen_mask_type==SCREEN_MASK_MD) {
+			mask_matches_game = dst_rect->x==32 && dst_rect->y==48 && dst_rect->w==960 && dst_rect->h==672;
 		}
 	}
 	if (mask_matches_game && vid.screen_mask) {

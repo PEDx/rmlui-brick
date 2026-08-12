@@ -15,7 +15,7 @@
 当前已接入 MinUI `tg5040` 的 MinArch、Gambatte 和 gpSP：GB/GBC 使用 Gambatte，GBA 使用
 gpSP。运行时不存在时，游戏库仍可浏览，但 launcher 会拒绝启动并返回桌面。
 
-项目现在将实际参与编译的 MinArch/common/tg5040 源码、Libretro API 头、四套 pak、核心二进制
+项目现在将实际参与编译的 MinArch/common/tg5040 源码、Libretro API 头、五套 pak、核心二进制
 和渲染资源统一维护在 `vendor/minarch` 与 `vendor/tg5040`。构建与安装不读取相邻的 MinUI
 checkout；MinUI 只作为上游来源记录。
 
@@ -34,6 +34,7 @@ aperture；中心亮度为 `1.0`、边缘为 `0.9`、四角为 `0.8`。它不依
 
 ```text
 minarch.elf + gpsp_libretro.so
+```
 
 SFC / SNES 使用：
 
@@ -41,10 +42,30 @@ SFC / SNES 使用：
 minarch.elf + snes9x2005_plus_libretro.so
 ```
 
-Brick 使用 256×224 的 3 倍整数缩放（768×672，坐标 128,48）。只有核心输出正好匹配该游戏
-画面时才叠加 `sfc-brick-mask.png` 和 `sfc-crt-3x.png`；MinArch 菜单以及高分辨率模式不会套用
-遮罩，避免菜单拉伸或错位。
+Brick 使用 256×224 的 3 倍整数缩放（768×672，坐标 128,48）。GLES2 fragment shader 只在
+精确命中该 viewport 时启用；Snes9x 输出 256×239 overscan 时，固定裁掉顶部 7 行和底部 8 行，
+保持同一个 256×224 网格。默认 `sharp` shader 在 3×3 输出块中生成清晰扫描线，不混合相邻
+源像素；shadow mask 的 R/G/B 色栅各占 2 个输出像素，以适应 Brick 的高密度小屏。它只保留
+很弱的 bloom 和 gamma/contrast 补偿，最后再叠加 `sfc-brick-mask.png`。MinArch 菜单以及其他
+分辨率模式都不会套用 shader 或机型遮罩。
+
+SFC 提供三档画面：默认 `sharp` 保持像素清晰；`crt`（`consumer` 别名）加入轻微横向融合、
+更强 bloom 和暗角；`composite` 再加入明显的 AV 色彩横向溢出。也可以临时关闭：
+
+```sh
+printf '%s\n' sharp     > /mnt/SDCARD/.userdata/tg5040/SFC-shader
+printf '%s\n' crt       > /mnt/SDCARD/.userdata/tg5040/SFC-shader
+printf '%s\n' composite > /mnt/SDCARD/.userdata/tg5040/SFC-shader
+printf '%s\n' off       > /mnt/SDCARD/.userdata/tg5040/SFC-shader
 ```
+
+预设文件由 SFC pak 启动脚本读取；不存在或内容无效时回退为 `sharp`。若 GLES2 初始化失败，仍会
+回退到 SDL renderer 和 `sfc-crt-3x.png`，保证游戏可以正常启动。
+
+Sega Genesis 使用 PicoDrive，系统 ID 和 ROM 目录沿用 MinUI 的 `MD` 约定。它复用同一套
+GLES2 CRT 管线，但独立读取 `/mnt/SDCARD/.userdata/tg5040/MD-shader`。默认 `sharp` 将常见的
+320×224 画面精确放大到 `(32,48,960,672)`；可选 `crt`、`composite` 或 `off`。核心输出
+320×240 overscan 时会裁掉上下各 8 行，避免画面比例失真。
 
 gpSP 是 MinUI 给 GBA 使用的默认 core，目标偏向低功耗和流畅运行。需要更高兼容性时，可以把
 `mgba_libretro.so` 作为第二个可选 core；MinUI 的 Extras 也使用
@@ -85,15 +106,15 @@ launcher
 
 ```text
 /mnt/SDCARD/
-├── Roms/{GB,GBC,GBA}/
-│   ├── <游戏文件>.<gb|gbc|gba|zip>
+├── Roms/{GB,GBC,GBA,SFC,MD}/
+│   ├── <游戏文件>.<gb|gbc|gba|sfc|smc|md|gen|bin|smd|zip>
 │   └── .media/<游戏文件名（不含扩展名）>.png
-├── Bios/{GB,GBC,GBA}/
-├── Saves/{GB,GBC,GBA}/
+├── Bios/{GB,GBC,GBA,SFC,MD}/
+├── Saves/{GB,GBC,GBA,SFC,MD}/
 └── .system/tg5040/
     ├── bin/minarch.elf
-    ├── cores/{gambatte,gpsp}_libretro.so
-    └── paks/Emus/{GB,GBC,GBA}.pak/
+    ├── cores/{gambatte,gpsp,snes9x2005_plus,picodrive}_libretro.so
+    └── paks/Emus/{GB,GBC,GBA,SFC,MD}.pak/
         ├── launch.sh
         └── default.cfg
 ```
@@ -116,10 +137,10 @@ minarch.elf "$CORES_PATH/gpsp_libretro.so" "$ROM"
 - CPU governor/频率和退出后的恢复策略；
 - Brick 的手柄映射、音量、电源键和休眠行为。
 
-C++ 层把系统和 ROM 写为两行结构化请求。launcher 只接受 GB/GBC/GBA、校验 ROM 必须位于
+C++ 层把系统和 ROM 写为两行结构化请求。launcher 只接受已接入系统、校验 ROM 必须位于
 `/mnt/SDCARD/Roms` 且扩展名匹配，并始终把路径作为单个引用参数传递给对应 `.pak/launch.sh`。
-当前支持 GB (`.gb`)、GBC (`.gbc`)、GBA (`.gba`) 和 SFC (`.sfc`/`.smc`)；各平台也允许
-MinUI 原有的 `.zip` 包装格式。
+当前支持 GB (`.gb`)、GBC (`.gbc`)、GBA (`.gba`)、SFC (`.sfc`/`.smc`) 和 MD
+(`.md`/`.gen`/`.bin`/`.smd`)；各平台也允许 MinUI 原有的 `.zip` 包装格式。
 
 ## 退出安全
 
@@ -131,7 +152,7 @@ MinArch 运行时同时管理 Brick 的显示、音频、输入和电源状态�
 
 第一阶段接口已经完成：
 
-1. 扫描 GB/GBC/GBA 目录中的 `.gb`、`.gbc`、`.gba`、`.zip` 文件；
+1. 扫描 GB/GBC/GBA/SFC/MD 目录中的受支持 ROM 文件；
 2. 在 RmlUi 封面 rail 中显示整理后的游戏名，并按相邻 `.media` 约定加载 PNG 封面；
 3. 按 A 时生成两行 `{ system, rom }` 请求并正常退出桌面；
 4. 模拟器退出后恢复前端状态。
@@ -158,7 +179,7 @@ MinArch 运行时同时管理 Brick 的显示、音频、输入和电源状态�
 ```
 
 `build-brick.sh` 会同时从仓库内 vendored source 重建 `minarch.elf` 和 RmlUi 前端；
-`package-brick.sh` 将前端、MinArch、三个 core、四套 pak 与全部遮罩一起放入
+`package-brick.sh` 将前端、MinArch、四个 core、五套 pak 与全部遮罩一起放入
 `build/package/rmlui-prototype`。
 
 也可以直接从打包目录安装 runtime：

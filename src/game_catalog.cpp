@@ -11,11 +11,12 @@
 
 namespace {
 
-constexpr std::array<GameSystemInfo, 4> kSystems = {{
+constexpr std::array<GameSystemInfo, 5> kSystems = {{
     {GameSystem::GameBoy, "GB", "GAME BOY", "GB", "GAMBATTE", "icons/gb-dmg-simple.png"},
     {GameSystem::GameBoyColor, "GBC", "GAME BOY COLOR", "GBC", "GAMBATTE", "icons/gbc-atomic-purple-simple.png"},
     {GameSystem::GameBoyAdvance, "GBA", "GAME BOY ADVANCE", "GBA", "GPSP", "icons/gba-indigo-simple.png"},
     {GameSystem::SuperNintendo, "SFC", "SUPER NINTENDO", "SFC", "SNES9X 2005+", "icons/snes-classic-simple.png"},
+    {GameSystem::SegaGenesis, "MD", "SEGA GENESIS", "MD", "PICO DRIVE", "icons/genesis-model1-simple.png"},
 }};
 
 std::string JoinPath(const std::string& parent, const std::string& child)
@@ -59,6 +60,9 @@ bool HasSupportedExtension(GameSystem system, const std::string& name)
     case GameSystem::GameBoyColor: return extension == ".gbc" || extension == ".zip";
     case GameSystem::GameBoyAdvance: return extension == ".gba" || extension == ".zip";
     case GameSystem::SuperNintendo: return extension == ".sfc" || extension == ".smc" || extension == ".zip";
+    case GameSystem::SegaGenesis:
+        return extension == ".md" || extension == ".gen" || extension == ".bin" ||
+            extension == ".smd" || extension == ".zip";
     }
     return false;
 }
