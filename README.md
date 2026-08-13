@@ -36,18 +36,18 @@
   </tr>
   <tr>
     <td align="center"><sub>Game Boy Advance · 4×4 LCD aperture</sub></td>
-    <td align="center"><sub>Game Boy Color · LCD 像素网格</sub></td>
+    <td align="center"><sub>Game Boy Color · 5×5 LCD aperture</sub></td>
   </tr>
 </table>
 
-GBA 游戏以原生 `240×160` 网格进行 4 倍整数缩放，显示区域为 `960×640`；GBC 游戏使用对应的 160×144 LCD 网格。两者都叠加绑定源像素的 LCD 效果、颗粒质感和各自的机型遮罩。截图来自当前真机运行帧缓冲，未使用桌面预览或后期效果模拟。
+GBA 游戏以原生 `240×160` 网格进行 4 倍整数缩放，显示区域为 `960×640`；GBC 游戏将原生 `160×144` 网格以 5 倍整数缩放到 `800×720`。两者都通过 fragment shader 生成绑定源像素的 LCD aperture，再叠加颗粒质感和各自的机型遮罩。截图来自当前真机运行帧缓冲，未使用桌面预览或后期效果模拟。
 
 ## 已支持平台
 
 | 平台 | 系统目录 | ROM 格式 | Libretro core | 屏幕处理 |
 | --- | --- | --- | --- | --- |
-| Game Boy | `GB` | `.gb` `.zip` | Gambatte | 机型遮罩与 LCD 效果 |
-| Game Boy Color | `GBC` | `.gbc` `.zip` | Gambatte | 机型遮罩与 LCD 效果 |
+| Game Boy | `GB` | `.gb` `.zip` | Gambatte | 5× 整数缩放、5×5 LCD aperture |
+| Game Boy Color | `GBC` | `.gbc` `.zip` | Gambatte | 5× 整数缩放、5×5 LCD aperture |
 | Game Boy Advance | `GBA` | `.gba` `.zip` | gpSP | 4× 整数缩放、4×4 LCD aperture |
 | Super Nintendo / SFC | `SFC` | `.sfc` `.smc` `.zip` | Snes9x 2005 Plus | Sharp、CRT、Composite 预设 |
 | Sega Genesis / Mega Drive | `MD` | `.md` `.gen` `.bin` `.smd` `.zip` | PicoDrive | Sharp、CRT、Composite 预设 |
@@ -201,6 +201,8 @@ launcher 通过原厂 `/tmp/cmd_to_run.sh` 完成显示交接。桌面退出后�
 
 GBA 的 `240×160` 画面以 4 倍整数缩放到 `(32,64,960,640)`。fragment shader 根据 fragment 相对游戏 viewport 的位置生成 4×4 aperture，效果绑定原始像素网格，不使用简单平铺的黑色网格图。
 
+GB/GBC 的 `160×144` 画面以 5 倍整数缩放到 `(112,24,800,720)`，由独立的 GB/GBC fragment shader 生成 5×5 aperture。原有 `gb-gbc-lcd-5x.png` 仅作为 GLES2 初始化失败时的 SDL renderer 回退资源。
+
 Game Gear 的 core 输出 `160×144`。原机 LCD 使用非方形像素，因此映射为 `(32,24,960,720)`，每个源像素对应 6×5 输出单元；shader 只轻微压暗单元边缘，随后再合成 Game Gear 遮罩。
 
 SFC 与 MD 使用独立 CRT 管线，提供：
@@ -248,6 +250,7 @@ SFC 与 MD 使用独立 CRT 管线，提供：
 - 缓存 RmlUi 几何数据，避免每帧重复转换和分配；
 - 设备端动态链接已有的 SDL2、SDL2_image、FreeType 和 glibc；
 - GameController 可用时忽略重复的底层 Joystick hat 事件，防止一次按键移动两格。
+- 屏幕 shader 按 GB/GBC、GBA、Game Gear 和 CRT 管线拆分在 `vendor/minarch/src/platform/tg5040/shaders/`，MinArch 只编译当前机型对应的 fragment shader。
 
 ## 文档
 

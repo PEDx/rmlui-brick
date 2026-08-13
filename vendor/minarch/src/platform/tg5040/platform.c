@@ -19,6 +19,11 @@
 #include "utils.h"
 
 #include "scaler.h"
+#include "shaders/game_vertex_shader.h"
+#include "shaders/gb_gbc_fragment_shader.h"
+#include "shaders/gba_fragment_shader.h"
+#include "shaders/game_gear_fragment_shader.h"
+#include "shaders/crt_fragment_shader.h"
 
 int is_brick = 0;
 
@@ -87,109 +92,15 @@ enum {
 
 enum {
 	SCREEN_EFFECT_NONE = 0,
-	SCREEN_EFFECT_GBA_APERTURE,
+	SCREEN_EFFECT_APERTURE,
 	SCREEN_EFFECT_SFC_SHARP,
 	SCREEN_EFFECT_SFC_CRT,
 	SCREEN_EFFECT_SFC_COMPOSITE,
-	SCREEN_EFFECT_GG_APERTURE,
 };
 
 static int device_width;
 static int device_height;
 static int device_pitch;
-
-static const char* game_vertex_shader =
-	"attribute vec2 a_position;\n"
-	"attribute vec2 a_texcoord;\n"
-	"varying vec2 v_texcoord;\n"
-	"void main() {\n"
-	"  gl_Position = vec4(a_position, 0.0, 1.0);\n"
-	"  v_texcoord = a_texcoord;\n"
-	"}\n";
-
-static const char* game_fragment_shader =
-	"#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
-	"precision highp float;\n"
-	"#else\n"
-	"precision mediump float;\n"
-	"#endif\n"
-	"uniform sampler2D u_texture;\n"
-	"uniform float u_effect_mode;\n"
-	"uniform vec4 u_game_viewport;\n"
-	"uniform float u_output_height;\n"
-	"uniform vec2 u_texture_size;\n"
-	"varying vec2 v_texcoord;\n"
-	"void main() {\n"
-	"  vec4 color = texture2D(u_texture, v_texcoord);\n"
-	"  if (u_effect_mode > 0.5 && u_effect_mode < 1.5) {\n"
-	"    vec2 game_pos = vec2(\n"
-	"      gl_FragCoord.x - u_game_viewport.x,\n"
-	"      (u_output_height - gl_FragCoord.y) - u_game_viewport.y\n"
-	"    );\n"
-	"    vec2 local_pixel = mod(floor(game_pos), 4.0);\n"
-	"    float edge_x = (1.0 - step(0.5, local_pixel.x)) + step(2.5, local_pixel.x);\n"
-	"    float edge_y = (1.0 - step(0.5, local_pixel.y)) + step(2.5, local_pixel.y);\n"
-	"    float aperture = 1.0 - 0.10 * (edge_x + edge_y);\n"
-	"    color.rgb *= aperture;\n"
-	"  } else if (u_effect_mode > 4.5 && u_effect_mode < 5.5) {\n"
-	"    vec2 game_pos = vec2(\n"
-	"      gl_FragCoord.x - u_game_viewport.x,\n"
-	"      (u_output_height - gl_FragCoord.y) - u_game_viewport.y\n"
-	"    );\n"
-	"    vec2 local_pixel = mod(floor(game_pos), vec2(6.0, 5.0));\n"
-	"    float edge_x = (1.0 - step(0.5, local_pixel.x)) + step(4.5, local_pixel.x);\n"
-	"    float edge_y = (1.0 - step(0.5, local_pixel.y)) + step(3.5, local_pixel.y);\n"
-	"    float aperture = 1.0 - 0.08 * edge_x - 0.10 * edge_y;\n"
-	"    color.rgb *= aperture;\n"
-	"  } else if (u_effect_mode > 1.5) {\n"
-	"    vec2 texel = 1.0 / u_texture_size;\n"
-	"    vec3 left = texture2D(u_texture, v_texcoord - vec2(texel.x, 0.0)).rgb;\n"
-	"    vec3 right = texture2D(u_texture, v_texcoord + vec2(texel.x, 0.0)).rgb;\n"
-	"    vec3 up = texture2D(u_texture, v_texcoord - vec2(0.0, texel.y)).rgb;\n"
-	"    vec3 down = texture2D(u_texture, v_texcoord + vec2(0.0, texel.y)).rgb;\n"
-	"    float consumer_enabled = step(2.5, u_effect_mode);\n"
-	"    float composite_enabled = step(3.5, u_effect_mode);\n"
-	"    float side_weight = mix(0.0, 0.04, consumer_enabled);\n"
-	"    side_weight = mix(side_weight, 0.14, composite_enabled);\n"
-	"    vec3 rgb = color.rgb * (1.0 - 2.0 * side_weight)\n"
-	"             + (left + right) * side_weight;\n"
-	"    if (u_effect_mode > 3.5) {\n"
-	"      vec3 composite = vec3(left.r, rgb.g, right.b);\n"
-	"      rgb = mix(rgb, composite, 0.22);\n"
-	"    }\n"
-	"    vec2 game_pos = vec2(\n"
-	"      gl_FragCoord.x - u_game_viewport.x,\n"
-	"      (u_output_height - gl_FragCoord.y) - u_game_viewport.y\n"
-	"    );\n"
-	"    vec2 local_pixel = mod(floor(game_pos), 3.0);\n"
-	"    float mid_loss = mix(0.10, 0.16, consumer_enabled);\n"
-	"    float bottom_loss = mix(0.22, 0.24, consumer_enabled);\n"
-	"    float scanline = 1.0 - mid_loss * step(0.5, local_pixel.y)\n"
-	"                         - bottom_loss * step(1.5, local_pixel.y);\n"
-	"    float mask_column = mod(floor(game_pos.x * 0.5), 3.0);\n"
-	"    float red_column = 1.0 - step(0.5, mask_column);\n"
-	"    float blue_column = step(1.5, mask_column);\n"
-	"    float green_column = 1.0 - red_column - blue_column;\n"
-	"    float phosphor_base = mix(0.98, 0.975, consumer_enabled);\n"
-	"    vec3 phosphor = vec3(phosphor_base)\n"
-	"                  + 3.0 * (1.0 - phosphor_base)\n"
-	"                  * vec3(red_column, green_column, blue_column);\n"
-	"    vec3 bloom_source = (left + right + up + down) * 0.25;\n"
-	"    float bloom_strength = mix(0.02, 0.055, consumer_enabled);\n"
-	"    bloom_strength = mix(bloom_strength, 0.08, composite_enabled);\n"
-	"    vec3 bloom = max(bloom_source - vec3(0.62), vec3(0.0)) * bloom_strength;\n"
-	"    vec2 screen_pos = game_pos / u_game_viewport.zw * 2.0 - 1.0;\n"
-	"    float vignette_strength = mix(0.0, 0.055, consumer_enabled);\n"
-	"    float vignette = 1.0 - vignette_strength * dot(screen_pos, screen_pos);\n"
-	"    rgb *= scanline * phosphor;\n"
-	"    float gamma_power = mix(0.92, 0.90, consumer_enabled);\n"
-	"    float brightness = mix(1.10, 1.14, consumer_enabled);\n"
-	"    rgb = pow(max(rgb, vec3(0.0)), vec3(gamma_power));\n"
-	"    rgb = (((rgb - vec3(0.5)) * 1.04 + vec3(0.5)) * brightness + bloom) * vignette;\n"
-	"    color.rgb = clamp(rgb, 0.0, 1.0);\n"
-	"  }\n"
-	"  gl_FragColor = color;\n"
-	"}\n";
 
 static GLuint compileShader(GLenum type, const char* source) {
 	GLuint shader = glCreateShader(type);
@@ -207,7 +118,7 @@ static GLuint compileShader(GLenum type, const char* source) {
 	return shader;
 }
 
-static int initGameGl(void) {
+static int initGameGl(const char* fragment_shader_source) {
 	vid.gl_context = SDL_GL_CreateContext(vid.window);
 	if (!vid.gl_context) {
 		LOG_info("Game GLES context is unavailable: %s\n", SDL_GetError());
@@ -215,8 +126,8 @@ static int initGameGl(void) {
 	}
 	SDL_GL_SetSwapInterval(1);
 
-	GLuint vertex = compileShader(GL_VERTEX_SHADER, game_vertex_shader);
-	GLuint fragment = compileShader(GL_FRAGMENT_SHADER, game_fragment_shader);
+	GLuint vertex = compileShader(GL_VERTEX_SHADER, game_vertex_shader_source);
+	GLuint fragment = compileShader(GL_FRAGMENT_SHADER, fragment_shader_source);
 	if (!vertex || !fragment) return 0;
 
 	vid.gl_program = glCreateProgram();
@@ -345,8 +256,18 @@ SDL_Surface* PLAT_initVideo(void) {
 	is_brick = device && strcmp(device, "brick") == 0;
 	const char* system = getenv("MINARCH_SYSTEM");
 	int request_game_gl = is_brick && system &&
-		(strcmp(system, "GBA") == 0 || strcmp(system, "SFC") == 0 ||
+		(strcmp(system, "GB") == 0 || strcmp(system, "GBC") == 0 ||
+		 strcmp(system, "GBA") == 0 || strcmp(system, "SFC") == 0 ||
 		 strcmp(system, "MD") == 0 || strcmp(system, "GG") == 0);
+	const char* fragment_shader_source = NULL;
+	if (system && (strcmp(system, "GB") == 0 || strcmp(system, "GBC") == 0))
+		fragment_shader_source = gb_gbc_fragment_shader_source;
+	else if (system && strcmp(system, "GBA") == 0)
+		fragment_shader_source = gba_fragment_shader_source;
+	else if (system && strcmp(system, "GG") == 0)
+		fragment_shader_source = game_gear_fragment_shader_source;
+	else if (system && (strcmp(system, "SFC") == 0 || strcmp(system, "MD") == 0))
+		fragment_shader_source = crt_fragment_shader_source;
 	vid.crt_shader_mode = SCREEN_EFFECT_SFC_SHARP;
 	const char* crt_shader = system && strcmp(system, "MD") == 0
 		? getenv("MINARCH_MD_SHADER")
@@ -406,7 +327,7 @@ SDL_Surface* PLAT_initVideo(void) {
 	}
 	vid.window = SDL_CreateWindow("", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, w, h,
 		SDL_WINDOW_SHOWN | (request_game_gl ? SDL_WINDOW_OPENGL : 0));
-	vid.use_game_gl = request_game_gl && initGameGl();
+	vid.use_game_gl = request_game_gl && initGameGl(fragment_shader_source);
 	if (request_game_gl && !vid.use_game_gl) {
 		destroyGameGl();
 		SDL_DestroyWindow(vid.window);
@@ -441,12 +362,12 @@ SDL_Surface* PLAT_initVideo(void) {
 		if (system && strcmp(system, "GB") == 0) {
 			vid.screen_mask_type = SCREEN_MASK_GB;
 			mask_name = "gb-brick-mask.png";
-			lcd_name = "gb-gbc-lcd-5x.png";
+			if (!vid.use_game_gl) lcd_name = "gb-gbc-lcd-5x.png";
 		}
 		else if (system && strcmp(system, "GBC") == 0) {
 			vid.screen_mask_type = SCREEN_MASK_GBC;
 			mask_name = "gbc-brick-mask.png";
-			lcd_name = "gb-gbc-lcd-5x.png";
+			if (!vid.use_game_gl) lcd_name = "gb-gbc-lcd-5x.png";
 		}
 		else if (system && strcmp(system, "GBA") == 0) {
 			vid.screen_mask_type = SCREEN_MASK_GBA;
@@ -872,10 +793,17 @@ static void flipGameGl(void) {
 
 	int mask_matches_game = 0;
 	int effect_mode = SCREEN_EFFECT_NONE;
-	if (vid.screen_mask_active && vid.screen_mask_type==SCREEN_MASK_GBA &&
+	if (vid.screen_mask_active &&
+		(vid.screen_mask_type==SCREEN_MASK_GB || vid.screen_mask_type==SCREEN_MASK_GBC) &&
+		dst_rect.x==112 && dst_rect.y==24 && dst_rect.w==800 && dst_rect.h==720 &&
+		src_rect.w==160 && src_rect.h==144) {
+		mask_matches_game = 1;
+		effect_mode = SCREEN_EFFECT_APERTURE;
+	}
+	else if (vid.screen_mask_active && vid.screen_mask_type==SCREEN_MASK_GBA &&
 		dst_rect.x==32 && dst_rect.y==64 && dst_rect.w==960 && dst_rect.h==640) {
 		mask_matches_game = 1;
-		effect_mode = SCREEN_EFFECT_GBA_APERTURE;
+		effect_mode = SCREEN_EFFECT_APERTURE;
 	}
 	else if (vid.screen_mask_active && vid.screen_mask_type==SCREEN_MASK_SFC &&
 		dst_rect.x==128 && dst_rect.y==48 && dst_rect.w==768 && dst_rect.h==672 &&
@@ -893,12 +821,13 @@ static void flipGameGl(void) {
 		dst_rect.x==32 && dst_rect.y==24 && dst_rect.w==960 && dst_rect.h==720 &&
 		src_rect.w==160 && src_rect.h==144) {
 		mask_matches_game = 1;
-		effect_mode = SCREEN_EFFECT_GG_APERTURE;
+		effect_mode = SCREEN_EFFECT_APERTURE;
 	}
 	if (effect_mode!=SCREEN_EFFECT_NONE && !vid.gl_effect_logged) {
-		const char* effect_name = effect_mode==SCREEN_EFFECT_GG_APERTURE
-			? "gg-aperture-6x5" : "gba-aperture";
-		if (effect_mode!=SCREEN_EFFECT_GBA_APERTURE && effect_mode!=SCREEN_EFFECT_GG_APERTURE) {
+		const char* effect_name = vid.screen_mask_type==SCREEN_MASK_GB ? "gb-aperture-5x5" :
+			(vid.screen_mask_type==SCREEN_MASK_GBC ? "gbc-aperture-5x5" :
+			(vid.screen_mask_type==SCREEN_MASK_GG ? "gg-aperture-6x5" : "gba-aperture-4x4"));
+		if (effect_mode!=SCREEN_EFFECT_APERTURE) {
 			const int md = vid.screen_mask_type==SCREEN_MASK_MD;
 			effect_name = effect_mode==SCREEN_EFFECT_SFC_COMPOSITE
 				? (md ? "md-composite" : "sfc-composite")

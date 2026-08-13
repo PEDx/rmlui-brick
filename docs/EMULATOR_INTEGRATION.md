@@ -28,6 +28,14 @@ aperture；中心亮度为 `1.0`、边缘为 `0.9`、四角为 `0.8`。它不依
 命中原生 4 倍 viewport 时启用，并在游戏画面之后继续合成已有的 `gba-brick-mask.png` 颗粒与
 机型遮罩。MiniArch/core 的颜色矫正流程未改动。
 
+GB/GBC 原生 160×144 画面采用 5 倍整数缩放，输出到 `(112,24,800,720)`。正常 Brick 路径
+使用独立 GLES2 fragment shader，根据 viewport 内坐标生成与源像素锁定的 5×5 LCD aperture；
+`gb-gbc-lcd-5x.png` 仅保留给 GLES2 初始化失败后的 SDL renderer 回退，不参与正常 shader 路径。
+
+各平台 shader 源码按职责维护在 `vendor/minarch/src/platform/tg5040/shaders/`：GB/GBC、GBA、
+Game Gear 和 SFC/MD CRT 各自使用独立 fragment shader，共享一个 vertex shader。MinArch 启动时
+根据 `MINARCH_SYSTEM` 只选择并编译当前平台需要的 fragment shader。
+
 ## 推荐方案
 
 第一版建议复用 MinUI 在 `tg5040` 平台已经验证过的组合：
