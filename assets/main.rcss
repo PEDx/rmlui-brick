@@ -292,6 +292,13 @@ p {
     height: 286px;
 }
 
+/* Cards outside the four-card movement window do not participate in layout or
+   painting. They are revealed one frame off-screen before becoming incoming,
+   so this cannot interrupt the normal slide at either wrapped boundary. */
+.model-card.carousel-parked {
+    display: none;
+}
+
 .console-image {
     width: 224px;
     height: 224px;

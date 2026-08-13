@@ -15,7 +15,7 @@
 当前已接入 MinUI `tg5040` 的 MinArch、Gambatte 和 gpSP：GB/GBC 使用 Gambatte，GBA 使用
 gpSP。运行时不存在时，游戏库仍可浏览，但 launcher 会拒绝启动并返回桌面。
 
-项目现在将实际参与编译的 MinArch/common/tg5040 源码、Libretro API 头、五套 pak、核心二进制
+项目现在将实际参与编译的 MinArch/common/tg5040 源码、Libretro API 头、六套 pak、核心二进制
 和渲染资源统一维护在 `vendor/minarch` 与 `vendor/tg5040`。构建与安装不读取相邻的 MinUI
 checkout；MinUI 只作为上游来源记录。
 
@@ -67,6 +67,12 @@ GLES2 CRT 管线，但独立读取 `/mnt/SDCARD/.userdata/tg5040/MD-shader`。�
 320×224 画面精确放大到 `(32,48,960,672)`；可选 `crt`、`composite` 或 `off`。核心输出
 320×240 overscan 时会裁掉上下各 8 行，避免画面比例失真。
 
+Game Gear 同样使用 PicoDrive，系统 ID 为 `GG`，支持 `.gg` 与 `.zip`。Game Gear 的原始
+160×144 framebuffer 采用非方形像素显示：每个原始像素映射为 6×5 输出像素，最终画面位于
+`(32,24,960,720)`，与原机约 4:3 的 LCD 观感一致。GLES2 shader 根据 viewport 内坐标实时
+生成 6×5 aperture，仅轻微压暗像素单元边缘；它不使用平铺网格纹理，也不会影响 MinArch/core
+已有的颜色处理。机型遮罩在游戏画面和 aperture 之后合成。
+
 gpSP 是 MinUI 给 GBA 使用的默认 core，目标偏向低功耗和流畅运行。需要更高兼容性时，可以把
 `mgba_libretro.so` 作为第二个可选 core；MinUI 的 Extras 也使用
 `minarch.elf + mgba_libretro.so`。
@@ -106,15 +112,15 @@ launcher
 
 ```text
 /mnt/SDCARD/
-├── Roms/{GB,GBC,GBA,SFC,MD}/
-│   ├── <游戏文件>.<gb|gbc|gba|sfc|smc|md|gen|bin|smd|zip>
+├── Roms/{GB,GBC,GBA,SFC,MD,GG}/
+│   ├── <游戏文件>.<gb|gbc|gba|sfc|smc|md|gen|bin|smd|gg|zip>
 │   └── .media/<游戏文件名（不含扩展名）>.png
-├── Bios/{GB,GBC,GBA,SFC,MD}/
-├── Saves/{GB,GBC,GBA,SFC,MD}/
+├── Bios/{GB,GBC,GBA,SFC,MD,GG}/
+├── Saves/{GB,GBC,GBA,SFC,MD,GG}/
 └── .system/tg5040/
     ├── bin/minarch.elf
     ├── cores/{gambatte,gpsp,snes9x2005_plus,picodrive}_libretro.so
-    └── paks/Emus/{GB,GBC,GBA,SFC,MD}.pak/
+    └── paks/Emus/{GB,GBC,GBA,SFC,MD,GG}.pak/
         ├── launch.sh
         └── default.cfg
 ```
@@ -139,8 +145,8 @@ minarch.elf "$CORES_PATH/gpsp_libretro.so" "$ROM"
 
 C++ 层把系统和 ROM 写为两行结构化请求。launcher 只接受已接入系统、校验 ROM 必须位于
 `/mnt/SDCARD/Roms` 且扩展名匹配，并始终把路径作为单个引用参数传递给对应 `.pak/launch.sh`。
-当前支持 GB (`.gb`)、GBC (`.gbc`)、GBA (`.gba`)、SFC (`.sfc`/`.smc`) 和 MD
-(`.md`/`.gen`/`.bin`/`.smd`)；各平台也允许 MinUI 原有的 `.zip` 包装格式。
+当前支持 GB (`.gb`)、GBC (`.gbc`)、GBA (`.gba`)、SFC (`.sfc`/`.smc`)、MD
+(`.md`/`.gen`/`.bin`/`.smd`) 和 GG (`.gg`)；各平台也允许 MinUI 原有的 `.zip` 包装格式。
 
 ## 退出安全
 
@@ -152,7 +158,7 @@ MinArch 运行时同时管理 Brick 的显示、音频、输入和电源状态�
 
 第一阶段接口已经完成：
 
-1. 扫描 GB/GBC/GBA/SFC/MD 目录中的受支持 ROM 文件；
+1. 扫描 GB/GBC/GBA/SFC/MD/GG 目录中的受支持 ROM 文件；
 2. 在 RmlUi 封面 rail 中显示整理后的游戏名，并按相邻 `.media` 约定加载 PNG 封面；
 3. 按 A 时生成两行 `{ system, rom }` 请求并正常退出桌面；
 4. 模拟器退出后恢复前端状态。
@@ -165,7 +171,8 @@ MinArch 运行时同时管理 Brick 的显示、音频、输入和电源状态�
 2. MinArch 正常退出后可以恢复 RmlUi 桌面与上次选择；
 3. launcher 会阻止在模拟器运行时从外部发送停止信号；
 4. GBA GLES2 aperture 已在真机完成 context、shader 编译和持续运行检查；
-5. 仍需持续回归更多游戏的画面比例、音频、按键和存档兼容性。
+5. GG 已在真机确认 PicoDrive 识别、160×144 输出、6×5 aperture 和 960×720 viewport；
+6. 仍需持续回归更多游戏的画面比例、音频、按键和存档兼容性。
 
 原厂 MainUI 和开机流程保持不变。测试运行时仅通过原厂交接脚本临时切换前端。
 
@@ -179,7 +186,7 @@ MinArch 运行时同时管理 Brick 的显示、音频、输入和电源状态�
 ```
 
 `build-brick.sh` 会同时从仓库内 vendored source 重建 `minarch.elf` 和 RmlUi 前端；
-`package-brick.sh` 将前端、MinArch、四个 core、五套 pak 与全部遮罩一起放入
+`package-brick.sh` 将前端、MinArch、四个 core、六套 pak 与全部遮罩一起放入
 `build/package/rmlui-prototype`。
 
 也可以直接从打包目录安装 runtime：

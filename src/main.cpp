@@ -333,6 +333,13 @@ public:
             if (now < carousel_animation_deadline) {
                 changed = true;
             } else {
+                if (Rml::Element* outgoing = document->GetElementById(kModels[carousel_outgoing].id)) {
+                    // The outgoing card has completed its normal trip beyond
+                    // the viewport. Stop drawing it until it is explicitly
+                    // prepared as an incoming card on a later move.
+                    outgoing->SetClass("carousel-snap", true);
+                    outgoing->SetClass("carousel-parked", true);
+                }
                 carousel_animation = CarouselAnimation::Idle;
                 if (carousel_queued_steps != 0) {
                     const int direction = carousel_queued_steps < 0 ? -1 : 1;
@@ -640,6 +647,33 @@ private:
         carousel_direction = direction;
         selected_system = WrapIndex(selected_system + direction, count);
         carousel_incoming = WrapIndex(selected_system + direction, count);
+        carousel_outgoing = WrapIndex(selected_system - direction * 2, count);
+
+        const int target_left = WrapIndex(selected_system - 1, count);
+        const int target_right = WrapIndex(selected_system + 1, count);
+        for (int index = 0; index < count; ++index) {
+            const bool target_visible =
+                index == target_left || index == selected_system || index == target_right;
+            if (target_visible || index == carousel_outgoing) {
+                if (Rml::Element* participant = document->GetElementById(kModels[index].id))
+                    participant->SetClass("carousel-parked", false);
+                continue;
+            }
+
+            if (Rml::Element* parked = document->GetElementById(kModels[index].id)) {
+                // Only four cards take part in a move: outgoing, left, center
+                // and right. Reposition every other card outside the viewport
+                // during the preparation frame with transitions disabled, so
+                // a wrapped index can never fly across the visible carousel.
+                parked->SetClass("carousel-snap", true);
+                parked->SetClass("slot-left", false);
+                parked->SetClass("slot-center", false);
+                parked->SetClass("slot-right", false);
+                parked->SetClass("slot-off-left", direction > 0);
+                parked->SetClass("slot-off-right", direction < 0);
+                parked->SetClass("carousel-parked", true);
+            }
+        }
 
         if (Rml::Element* incoming = document->GetElementById(kModels[carousel_incoming].id)) {
             // Teleport the hidden card to the entering side with transitions
@@ -664,10 +698,20 @@ private:
         for (int index = 0; index < count; ++index) {
             if (Rml::Element* card = document->GetElementById(kModels[index].id)) {
                 const bool hidden = index != left && index != selected_system && index != right;
+                const bool outgoing = direction != 0 && index == carousel_outgoing;
+                if (direction == 0) {
+                    // Initial/restored layouts have no movement to animate.
+                    // Keep hidden cards parked with transitions disabled until
+                    // one is explicitly selected as the next incoming card.
+                    card->SetClass("carousel-snap", hidden);
+                } else if (hidden && !outgoing) {
+                    card->SetClass("carousel-snap", true);
+                }
+                card->SetClass("carousel-parked", hidden && !outgoing);
                 card->SetClass("slot-left", index == left);
                 card->SetClass("slot-center", index == selected_system);
                 card->SetClass("slot-right", index == right);
-                card->SetClass("slot-off-left", hidden && direction > 0);
+                card->SetClass("slot-off-left", hidden && direction >= 0);
                 card->SetClass("slot-off-right", hidden && direction < 0);
                 card->SetClass("selected", index == selected_system);
                 if (index == selected_system)
@@ -684,6 +728,7 @@ private:
     int selected_system = 1;
     int carousel_direction = 0;
     int carousel_incoming = 0;
+    int carousel_outgoing = 0;
     int carousel_queued_steps = 0;
     Uint64 carousel_animation_deadline = 0;
     CarouselAnimation carousel_animation = CarouselAnimation::Idle;

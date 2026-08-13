@@ -1,122 +1,96 @@
 # rmlui-brick
 
-基于 **RmlUi + SDL2** 为 TrimUI Brick 持续开发的掌机桌面项目。界面使用设备原生 1024×768 物理像素设计，目标是提供机型选择、游戏浏览、模拟器启动、系统状态和统一的游戏内视觉体验。
+面向 TrimUI Brick 的掌机桌面与模拟器前端，使用 **RmlUi + SDL2 + MinArch** 构建。界面按设备原生 `1024×768` 分辨率设计，负责机型选择、ROM 浏览、模拟器启动、状态恢复以及不同平台的屏幕视觉效果。
 
-![rmlui-brick 第一版桌面实机截图](docs/images/desktop-v1.png)
+项目不替换原厂 `MainUI`，也不修改开机流程。桌面与模拟器通过独立 launcher 依次占用显示、音频和手柄，游戏退出后会回到之前选择的机型与 ROM。
 
-上图由 TrimUI Brick 实机运行后直接截取。当前首页顶部显示时间和电量，中间通过横向 roll 选择 Game Boy、Game Boy Color 和 Game Boy Advance；选中机型居中放大，方向键左右切换，A 键进入，B 键返回或退出。
+## 当前界面
 
-RCSS 能写哪些属性、与浏览器 CSS 有什么差异，以及当前 renderer 的能力
-边界，见 [RmlUi 6.2 RCSS 使用指南](docs/RCSS_GUIDE.md)。
+![包含六个机型的当前首页真机截图](docs/images/home-current.png)
 
-RML 可用 UI 元素、表单控件、滚动列表和掌机焦点联动，见
-[RML UI 元素与滚动列表](docs/RML_ELEMENTS.md)。
+首页支持左右无限循环。当前机型居中放大，相邻机型从屏幕两侧正常平移；首尾切换不会让后备卡片跨屏飞动。
 
-设备现有模拟器情况、GBA 方案以及桌面退出/模拟器运行/桌面恢复的接入流程，见
-[模拟器接入方案](docs/EMULATOR_INTEGRATION.md)。
+![当前游戏库真机截图](docs/images/library-current.png)
 
-## 当前状态
+游戏库从 SD 卡实时扫描 ROM，以封面轨道展示游戏。方向键选择，`A` 进入或启动，`B` 返回；顶部显示当前平台、游戏数量、电量、无线状态和时间。
 
-实机验证已经通过：
+## 已支持平台
 
-- 1024×768 全屏输出正常；
-- SDL renderer 为 `opengles2`；
-- `SDL_RenderGeometry`、矩形裁剪和字体纹理工作正常；
-- 预乘 Alpha 自定义混合模式可用，`renderer_ok=yes`；
-- SDL2_image PNG 解码、透明图标和纹理上传工作正常；
-- 使用设备 `/usr/trimui/res/regular.ttf` 的阿里巴巴普惠体，中文显示正常；
-- 首页时间和 AXP2202 电池电量读取正常；
-- Home 已按 Figma `3:2` 实现 GB/GBC/GBA/SFC/MD 横向机型 roll、选中放大和循环切换；
-- 游戏库已按 Figma `3:7` 实现封面 rail、游戏数量、当前选择和底部操作栏；
-- 可扫描 GB、GBC、GBA、SFC、MD ROM 目录及各平台对应扩展名和 `.zip`；
-- 封面按 `Roms/<系统>/.media/<ROM 文件名（不含扩展名）>.png` 自动匹配，不需要修改代码；
-- A 键进入游戏库或启动游戏，B 键返回；在首页按 B 可安全退出；
-- GB/GBC 使用 Gambatte，GBA 使用 gpSP，SFC 使用 Snes9x 2005 Plus，MD 使用 PicoDrive；MinArch 退出后恢复原系统和游戏选择；
-- SDL 将内置手柄识别为 `Xbox 360 Controller`；
-- 切换动画期间稳定约 60 FPS，静止后停止全屏重绘，仅保留 16 ms 输入轮询；
-- 时间只在分钟变化时刷新，电量每分钟检查一次，内容不变时不触发重绘；
-- 程序退出后，原厂 `MainUI` 会由 `runtrimui.sh` 自动恢复；
-- 没有修改原厂 `MainUI` 或开机流程。
+| 平台 | 系统目录 | ROM 格式 | Libretro core | 屏幕处理 |
+| --- | --- | --- | --- | --- |
+| Game Boy | `GB` | `.gb` `.zip` | Gambatte | 机型遮罩与 LCD 效果 |
+| Game Boy Color | `GBC` | `.gbc` `.zip` | Gambatte | 机型遮罩与 LCD 效果 |
+| Game Boy Advance | `GBA` | `.gba` `.zip` | gpSP | 4× 整数缩放、4×4 LCD aperture |
+| Super Nintendo / SFC | `SFC` | `.sfc` `.smc` `.zip` | Snes9x 2005 Plus | Sharp、CRT、Composite 预设 |
+| Sega Genesis / Mega Drive | `MD` | `.md` `.gen` `.bin` `.smd` `.zip` | PicoDrive | Sharp、CRT、Composite 预设 |
+| Sega Game Gear | `GG` | `.gg` `.zip` | PicoDrive | 6×5 LCD aperture、4:3 LCD 显示 |
 
-## 性能与功耗
+所有平台都使用相同的 ROM、封面、存档和启动约定，不需要把游戏列表写死在代码中。
 
-当前已完成桌面渲染路径的第一轮优化：
+## 主要能力
 
-| 实机静止状态 | 优化前 | 当前版本 |
-| --- | ---: | ---: |
-| 整机 CPU 占用 | 约 8.5% | 约 0.39% |
-| 单核等效占用 | 约 34% | 约 1.56% |
-| 桌面提交帧率 | 约 60.2 FPS | 0 FPS |
-| 实测 CPU 频率 | 约 1008 MHz | 最低可降至 408 MHz |
+- 原生 `1024×768` 全屏 RmlUi 界面，使用设备 OpenGL ES 2 renderer。
+- 六机型首页轮播、居中选中态和连续首尾循环。
+- 自动扫描 ROM 目录，并按文件名匹配封面。
+- 启动 MinArch 后释放桌面的显示、音频和手柄资源。
+- 模拟器正常退出后恢复原机型、目录和选中游戏。
+- 使用设备字体显示中文，不随项目重新分发字体文件。
+- 首页显示 AXP2202 电池电量和当前时间。
+- 静止时采用 dirty rendering，不持续提交重复帧。
+- MinArch 源码、core、pak 和渲染资源已经 vendoring，可独立构建，不需要修改相邻 MinUI 仓库。
 
-静止时仍以约 16 ms 的周期轮询手柄，确保按键延迟不超过一帧；发生输入后，
-只在 220 ms 切换动画窗口内恢复连续渲染。这里没有使用
-`SDL_WaitEventTimeout`，因为 Brick 自带 SDL 在启用手柄后会以约 1 kHz
-轮询事件，反而产生额外的空闲 CPU 消耗。
+电脑端另有 `rom-manager` 配套应用，可管理本地与真机游戏、元数据、封面和存档，并一键安装或卸载 ROM。
 
-自动降亮度、闲置关屏、休眠/唤醒、Wi-Fi/蓝牙电源策略、菜单 CPU 档位和
-严格的固定亮度续航对比测试尚未实现。这些优化不阻塞 UI 与模拟器接入，
-留到后续电源管理阶段集中处理。
-
-实机部署位置：
+## ROM 与资源约定
 
 ```text
-/mnt/UDISK/trimui-dev/rmlui-prototype/
-├── current/
-│   ├── trimui-rmlui-prototype
-│   ├── launch.sh
-│   └── assets/
-├── latest.log
-└── screenshot.bmp
+/mnt/SDCARD/
+├── Roms/
+│   ├── GB/
+│   ├── GBC/
+│   ├── GBA/
+│   ├── SFC/
+│   ├── MD/
+│   └── GG/
+├── Bios/{GB,GBC,GBA,SFC,MD,GG}/
+├── Saves/{GB,GBC,GBA,SFC,MD,GG}/
+└── .system/tg5040/
+    ├── bin/minarch.elf
+    ├── cores/
+    ├── paks/Emus/
+    └── res/
 ```
 
-## 代码结构
+每个系统目录内使用以下伴随文件：
 
 ```text
-.
-├── assets/
-│   ├── main.rml
-│   ├── main.rcss
-│   ├── icons/
-│   │   ├── gb-dmg-simple.png
-│   │   ├── gbc-atomic-purple-simple.png
-│   │   └── gba-indigo-simple.png
-│   └── launch-brick.sh
-├── cmake/
-│   └── zig-aarch64-linux.cmake
-├── scripts/
-│   ├── build-macos.sh
-│   ├── build-brick.sh
-│   ├── package-brick.sh
-│   ├── run-brick.sh
-│   ├── run-macos.sh
-│   ├── stage-test-library.sh
-│   ├── test-library.tsv
-│   └── setup-toolchain.sh
-├── docs/
-│   ├── images/desktop-v1.png
-│   ├── EMULATOR_INTEGRATION.md
-│   ├── RCSS_GUIDE.md
-│   └── RML_ELEMENTS.md
-└── src/
-    ├── main.cpp
-    ├── prototype_render_interface.*
-    └── prototype_system_interface.*
+Roms/GBA/
+├── Example.gba
+├── .media/Example.png
+└── .meta/Example.json
 ```
 
-## 关键技术选择
+- ROM 文件名就是默认显示标题。
+- 封面路径为 `.media/<ROM 文件名去掉扩展名>.png`。
+- 元数据路径为 `.meta/<ROM 文件名去掉扩展名>.json`。
+- 没有封面或元数据不会阻止 ROM 被识别和启动。
+- ROM Manager 会按相同约定安装文件，因此桌面刷新后即可显示。
 
-- 固定 RmlUi 6.2 commit `2230d1a6e8e0848ed87a5761e2a5160b2a175ba4`；
-- 使用 C++14 编译，以匹配 RmlUi 6.2 和旧目标环境；正式项目仍可使用 C++17；
-- 自定义 RmlUi SDL renderer 直接调用 `SDL_RenderGeometry`；
-- 使用 SDL2_image 加载 PNG，并在上传前转换为预乘 Alpha；
-- RmlUi 几何数据在编译阶段转换并缓存，渲染阶段复用顶点缓冲，避免逐元素重复申请内存；
-- 使用 dirty rendering：只在输入、动画、时钟或电量发生变化时调用 RmlUi 更新和全屏提交；
-- 仅动态链接设备已有的 SDL2、SDL2_image、FreeType 和 glibc；C++ 标准库由 Zig 链接，不依赖目标机的 `GLIBCXX` 版本；
-- 使用 TrimUI TG5040 SDK 的 SDL2、SDL2_image 和 FreeType 头文件及链接库；
-- 默认不包含字体文件，实机复用原厂字体，避免复制或重新分发字体资源。
+## 运行架构
 
-同一个方向键动作会同时产生 SDL GameController 和底层 Joystick hat 事件。程序在 GameController 成功打开时只处理高层事件，底层 hat/axis 仅作为兼容后备，防止一次按键移动两格。
+```text
+原厂 runtrimui.sh
+  └── rmlui-brick launcher
+      ├── RmlUi 桌面
+      │   └── 写入 {system, ROM path} 启动请求后正常退出
+      ├── MinArch + 对应 Libretro core
+      │   └── 从 MinArch 菜单正常退出
+      └── 重新启动 RmlUi，恢复选择状态
+```
+
+桌面和 MinArch 不会同时持有 SDL 窗口。launcher 还会校验 ROM 必须位于 `/mnt/SDCARD/Roms`，且系统与扩展名相匹配。
+
+> 游戏运行时不要远程结束 `minarch.elf`。MinArch 同时管理显示、音频、输入和电源状态，应当从游戏内菜单正常退出；项目 launcher 在 emulator 模式下也会拒绝远程 `stop`。
 
 ## 构建
 
@@ -126,87 +100,138 @@ RML 可用 UI 元素、表单控件、滚动列表和掌机焦点联动，见
 brew install cmake zig sdl2_image
 ```
 
-本机版本：
+### macOS 预览
 
 ```sh
 ./scripts/build-macos.sh
 FONT=/tmp/trimui-regular.ttf ./scripts/run-macos.sh
 ```
 
-Brick 版本：
+### TrimUI Brick
 
 ```sh
 ./scripts/build-brick.sh
 ./scripts/package-brick.sh
 ```
 
-构建脚本会自动获取并校验固定 revision 的 RmlUi；`setup-toolchain.sh` 会下载并校验官方
-TG5040 SDK，二者都放在被忽略的 `.deps/`。生成的自包含部署目录位于
-`build/package/rmlui-prototype/`。
+`build-brick.sh` 会同时构建 ARM64 前端和仓库内的 MinArch。固定版本的 RmlUi 与 TG5040 SDK 会下载到被忽略的 `.deps/`，最终自包含目录位于：
 
-## 实机运行
+```text
+build/package/rmlui-prototype/
+├── trimui-rmlui-prototype
+├── launch.sh
+├── assets/
+└── runtime/tg5040/
+```
 
-在开发机运行（会提示输入设备 SSH 密码）：
+## 真机部署与调试
+
+安装模拟器 runtime：
+
+```sh
+./scripts/install-emulator-runtime.sh
+```
+
+启动桌面：
 
 ```sh
 ./scripts/run-brick.sh start
 ```
 
-退出方式：
-
-- 在掌机上按 `B`，程序正常退出，原厂 `MainUI` 自动恢复；
-- 桌面界面无响应时，可在开发机执行 `./scripts/run-brick.sh stop`；
-- 游戏运行时必须从 MinArch 菜单正常退出；launcher 会拒绝远程 `stop`；
-- `./scripts/run-brick.sh status` 查看状态；
-- `./scripts/run-brick.sh logs` 查看最近 100 行日志。
-
-脚本默认连接 `root@192.168.31.117`，默认程序目录为
-`/mnt/UDISK/trimui-dev/rmlui-prototype/current`。可以分别用
-`TRIMUI_DEVICE` 和 `TRIMUI_REMOTE_DIR` 环境变量覆盖。脚本不包含或保存密码。
-
-也可以在设备端直接启动低层 launcher：
+常用命令：
 
 ```sh
-cd /mnt/UDISK/trimui-dev/rmlui-prototype/current
-./launch.sh
+./scripts/run-brick.sh status
+./scripts/run-brick.sh logs
+./scripts/run-brick.sh stop
 ```
 
-调试参数：
+默认连接 `root@192.168.31.117`，默认远端目录为 `/mnt/UDISK/trimui-dev/rmlui-prototype/current`。可以覆盖：
+
+```sh
+TRIMUI_DEVICE=root@192.168.1.20 \
+TRIMUI_REMOTE_DIR=/mnt/UDISK/trimui-dev/rmlui-prototype/current \
+./scripts/run-brick.sh start
+```
+
+launcher 通过原厂 `/tmp/cmd_to_run.sh` 完成显示交接。桌面退出后，原厂 `MainUI` 会由 `runtrimui.sh` 自动恢复。
+
+程序本身支持以下调试参数：
 
 ```text
 --seconds N         N 秒后自动退出
 --screenshot FILE   稳定渲染后保存 BMP 截图
---rom-root DIR      ROM 根目录；设备默认 /mnt/SDCARD/Roms
---request FILE      UI 与 launcher 的结构化启动请求
---state FILE        保存并恢复当前机型和 ROM 选择
---renderer NAME     指定 SDL renderer；Brick 使用 opengles2
---dp-ratio N        UI 密度倍率；默认 1.0，可在 0.5～4.0 间调试
---fullscreen        1024×768 全屏
+--rom-root DIR      指定 ROM 根目录
+--request FILE      UI 与 launcher 的启动请求文件
+--state FILE        保存和恢复当前机型、ROM 选择
+--renderer NAME     指定 SDL renderer
+--dp-ratio N        UI 密度倍率，范围 0.5～4.0
+--fullscreen        全屏运行
 ```
 
-为避免与原厂桌面争抢屏幕，推荐使用 `run-brick.sh start`。它会通过原厂
-`/tmp/cmd_to_run.sh` 完成交接，而不是在 `MainUI` 仍占用显示时直接运行。
-测试结束后原桌面自动恢复；该流程不覆盖原厂程序或开机配置。
+## 屏幕模拟
 
-MinArch 的构建源码和 tg5040 运行资源已 vendoring 到本仓库。执行
-`scripts/build-brick.sh` 会同时构建前端与 `vendor/tg5040/bin/minarch.elf`，不需要相邻的
-MinUI 仓库；`scripts/package-brick.sh` 生成的目录包含完整模拟器 runtime。
+GBA 的 `240×160` 画面以 4 倍整数缩放到 `(32,64,960,640)`。fragment shader 根据 fragment 相对游戏 viewport 的位置生成 4×4 aperture，效果绑定原始像素网格，不使用简单平铺的黑色网格图。
+
+Game Gear 的 core 输出 `160×144`。原机 LCD 使用非方形像素，因此映射为 `(32,24,960,720)`，每个源像素对应 6×5 输出单元；shader 只轻微压暗单元边缘，随后再合成 Game Gear 遮罩。
+
+SFC 与 MD 使用独立 CRT 管线，提供：
+
+- `sharp`：清晰像素和较弱扫描线；
+- `crt`：轻微横向融合、bloom 和暗角；
+- `composite`：进一步模拟 AV 色彩溢出；
+- `off`：关闭屏幕 shader。
+
+更完整的尺寸、overscan 和预设说明见 [模拟器接入方案](docs/EMULATOR_INTEGRATION.md)。
+
+## 性能
+
+桌面静止时不重复提交画面，但仍以约 16 ms 周期轮询手柄，保证输入延迟不超过一帧。发生输入后，仅在动画期间恢复连续渲染。
+
+| 实机静止状态 | 优化前 | 当前实现 |
+| --- | ---: | ---: |
+| 整机 CPU 占用 | 约 8.5% | 约 0.39% |
+| 单核等效占用 | 约 34% | 约 1.56% |
+| 桌面提交帧率 | 约 60.2 FPS | 0 FPS |
+| 实测 CPU 频率 | 约 1008 MHz | 最低约 408 MHz |
+
+这些数据来自当前开发阶段的实机采样，不代表固定亮度和统一无线状态下的完整续航测试。
+
+## 项目结构
+
+```text
+.
+├── assets/                    # RML、RCSS、机型图和 UI 资源
+├── cmake/                     # Zig ARM64 交叉编译配置
+├── docs/                      # 接入与 RmlUi 文档
+├── scripts/                   # 构建、打包、安装和真机运行脚本
+├── src/                       # RmlUi 桌面与 ROM catalog
+└── vendor/
+    ├── minarch/               # 项目维护的 MinArch 源码
+    └── tg5040/                # core、pak、遮罩和目标机 runtime
+```
+
+关键实现选择：
+
+- 固定 RmlUi 6.2 commit `2230d1a6e8e0848ed87a5761e2a5160b2a175ba4`；
+- C++14 与 Zig ARM64 toolchain；
+- 自定义 SDL renderer，直接使用 `SDL_RenderGeometry`；
+- PNG 上传前转换为预乘 Alpha；
+- 缓存 RmlUi 几何数据，避免每帧重复转换和分配；
+- 设备端动态链接已有的 SDL2、SDL2_image、FreeType 和 glibc；
+- GameController 可用时忽略重复的底层 Joystick hat 事件，防止一次按键移动两格。
+
+## 文档
+
+- [模拟器接入、shader 与安全退出](docs/EMULATOR_INTEGRATION.md)
+- [RmlUi 6.2 RCSS 使用指南](docs/RCSS_GUIDE.md)
+- [RML 元素与滚动列表](docs/RML_ELEMENTS.md)
 
 ## 当前限制
 
-- 封面需要预先放入 ROM 相邻的 `.media` 目录，尚未实现设备端在线刮削；
-- 尚未实现游戏简介、收藏和最近游玩时长；
-- 尚未接入网络、音量、亮度和休眠恢复状态；
-- 尚未实现自动降亮度、闲置关屏和完整的桌面电源管理策略；
-- GBA 已接入绑定 240×160 原始像素网格的 4× LCD aperture shader；其他机型仍使用纹理效果；
-- Debugger 仍编入开发版本，正式 Release 应移除以减小代码量；
-- 原厂脚本会输出一次无害的 `setterm: not found`，不影响 SDL/RmlUi 渲染。
-
-## 下一步
-
-1. 完成更多 GB/GBC/GBA 游戏的存档与长时间运行回归；
-2. 加载游戏简介、收藏、最近游玩状态和设备端封面刮削；
-3. 为 GBA 增加 mGBA 兼容性 fallback；
-4. 将 GBA 的 GLES2 aperture 方案扩展到其他适合整数缩放的机型；
-5. 验证原生 OSD、休眠和唤醒后的图形上下文恢复；
-6. 在核心功能稳定后完成降亮度、无线网络和 CPU 档位等续航优化。
+- 收藏、最近游玩和游玩时长尚未接入桌面。
+- 音量、亮度、Wi-Fi、蓝牙和休眠恢复尚未形成完整的桌面设置页。
+- GBA 暂未提供 mGBA fallback core。
+- 自动降亮度、闲置关屏和严格续航测试仍待完成。
+- 开发构建仍包含 RmlUi Debugger，Release 版本后续应移除。
+- 原厂环境会打印一次无害的 `setterm: not found`，不影响运行。
