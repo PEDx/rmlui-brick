@@ -6,13 +6,22 @@
 
 ## 当前界面
 
-![包含六个机型的当前首页真机截图](docs/images/home-current.png)
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/images/home-current.png" alt="包含六个机型的当前首页真机截图">
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/images/library-current.png" alt="当前游戏库真机截图">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><sub>六机型首页与无限循环轮播</sub></td>
+    <td align="center"><sub>从 SD 卡扫描生成的游戏封面轨道</sub></td>
+  </tr>
+</table>
 
-首页支持左右无限循环。当前机型居中放大，相邻机型从屏幕两侧正常平移；首尾切换不会让后备卡片跨屏飞动。
-
-![当前游戏库真机截图](docs/images/library-current.png)
-
-游戏库从 SD 卡实时扫描 ROM，以封面轨道展示游戏。方向键选择，`A` 进入或启动，`B` 返回；顶部显示当前平台、游戏数量、电量、无线状态和时间。
+首页支持左右无限循环。当前机型居中放大，相邻机型从屏幕两侧正常平移；首尾切换不会让后备卡片跨屏飞动。游戏库从 SD 卡实时扫描 ROM，以封面轨道展示游戏。方向键选择，`A` 进入或启动，`B` 返回；顶部显示当前平台、游戏数量、电量、无线状态和时间。
 
 ## 已支持平台
 
