@@ -23,6 +23,25 @@
 
 首页支持左右无限循环。当前机型居中放大，相邻机型从屏幕两侧正常平移；首尾切换不会让后备卡片跨屏飞动。游戏库从 SD 卡实时扫描 ROM，以封面轨道展示游戏。方向键选择，`A` 进入或启动，`B` 返回；顶部显示当前平台、游戏数量、电量、无线状态和时间。
 
+### 游戏内效果
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/images/gba-gameplay-current.png" alt="GBA 游戏在 TrimUI Brick 上通过 MinArch 运行的实机截图">
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/images/gbc-gameplay-current.png" alt="GBC 游戏在 TrimUI Brick 上通过 MinArch 运行的实机截图">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Game Boy Advance · 4×4 LCD aperture</sub></td>
+    <td align="center"><sub>Game Boy Color · LCD 像素网格</sub></td>
+  </tr>
+</table>
+
+GBA 游戏以原生 `240×160` 网格进行 4 倍整数缩放，显示区域为 `960×640`；GBC 游戏使用对应的 160×144 LCD 网格。两者都叠加绑定源像素的 LCD 效果、颗粒质感和各自的机型遮罩。截图来自当前真机运行帧缓冲，未使用桌面预览或后期效果模拟。
+
 ## 已支持平台
 
 | 平台 | 系统目录 | ROM 格式 | Libretro core | 屏幕处理 |
