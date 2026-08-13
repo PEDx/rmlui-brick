@@ -1,0 +1,163 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
+  <title id="title">rmlui-brick screen simulation guide</title>
+  <desc id="description">Comparison of the source-pixel-aligned LCD aperture shaders for Game Boy, Game Boy Advance and Game Gear, plus the CRT shader used by Super Nintendo and Mega Drive.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f3efe5; }
+      .card { fill: #faf8f1; stroke: #d3ccbe; stroke-width: 2; }
+      .title { fill: #171611; font: 700 30px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 1px; }
+      .subtitle { fill: #777064; font: 500 17px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .label { fill: #29271f; font: 650 18px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .small { fill: #777064; font: 500 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .mono { fill: #514b42; font: 600 15px ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .pipe { fill: #eee8dc; stroke: #c8c0b1; stroke-width: 2; }
+      .arrow { fill: none; stroke: #6246c7; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+      .center { text-anchor: middle; }
+      .cell { stroke: #f3efe5; stroke-width: 2; }
+      .full { fill: #78a95c; }
+      .edge { fill: #689250; }
+      .corner { fill: #587b44; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#6246c7"/>
+    </marker>
+    <linearGradient id="crtGlow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#26364f"/>
+      <stop offset="0.5" stop-color="#506f91"/>
+      <stop offset="1" stop-color="#26364f"/>
+    </linearGradient>
+  </defs>
+
+  <rect class="bg" width="1600" height="900"/>
+  <text class="title center" x="800" y="55">SCREEN SIMULATION MAP</text>
+  <text class="subtitle center" x="800" y="87">所有 LCD aperture 都根据 viewport 内的 fragment 坐标生成，并与原始像素网格锁定</text>
+
+  <!-- GB / GBC -->
+  <g transform="translate(45 125)">
+    <rect class="card" width="355" height="555" rx="24"/>
+    <text class="title" x="28" y="48">GB / GBC</text>
+    <text class="subtitle" x="28" y="77">160×144 · 5× integer scale</text>
+    <text class="mono" x="28" y="105">viewport 112,24 · 800×720</text>
+
+    <rect x="58" y="140" width="240" height="240" rx="8" fill="#d8e8ca" stroke="#b5aa98" stroke-width="2"/>
+    <!-- Repeated 5x5 aperture cells, enlarged for inspection. -->
+    <g transform="translate(78 160)">
+      <g>
+        <rect class="cell corner" x="0" y="0" width="40" height="40"/><rect class="cell edge" x="40" y="0" width="40" height="40"/><rect class="cell edge" x="80" y="0" width="40" height="40"/><rect class="cell edge" x="120" y="0" width="40" height="40"/><rect class="cell corner" x="160" y="0" width="40" height="40"/>
+        <rect class="cell edge" x="0" y="40" width="40" height="40"/><rect class="cell full" x="40" y="40" width="40" height="40"/><rect class="cell full" x="80" y="40" width="40" height="40"/><rect class="cell full" x="120" y="40" width="40" height="40"/><rect class="cell edge" x="160" y="40" width="40" height="40"/>
+        <rect class="cell edge" x="0" y="80" width="40" height="40"/><rect class="cell full" x="40" y="80" width="40" height="40"/><rect class="cell full" x="80" y="80" width="40" height="40"/><rect class="cell full" x="120" y="80" width="40" height="40"/><rect class="cell edge" x="160" y="80" width="40" height="40"/>
+        <rect class="cell edge" x="0" y="120" width="40" height="40"/><rect class="cell full" x="40" y="120" width="40" height="40"/><rect class="cell full" x="80" y="120" width="40" height="40"/><rect class="cell full" x="120" y="120" width="40" height="40"/><rect class="cell edge" x="160" y="120" width="40" height="40"/>
+        <rect class="cell corner" x="0" y="160" width="40" height="40"/><rect class="cell edge" x="40" y="160" width="40" height="40"/><rect class="cell edge" x="80" y="160" width="40" height="40"/><rect class="cell edge" x="120" y="160" width="40" height="40"/><rect class="cell corner" x="160" y="160" width="40" height="40"/>
+      </g>
+    </g>
+    <text class="label center" x="178" y="414">一个源像素 → 5×5 fragment</text>
+    <text class="small center" x="178" y="444">中心 1.00 · 边缘 0.86 · 四角 0.76</text>
+    <rect x="28" y="474" width="299" height="54" rx="12" fill="#eee8dc"/>
+    <text class="small center" x="178" y="497">适合点阵 LCD：边缘轻微压暗，</text>
+    <text class="small center" x="178" y="518">不产生 1 px 黑色网格</text>
+  </g>
+
+  <!-- GBA -->
+  <g transform="translate(430 125)">
+    <rect class="card" width="355" height="555" rx="24"/>
+    <text class="title" x="28" y="48">GBA</text>
+    <text class="subtitle" x="28" y="77">240×160 · 4× integer scale</text>
+    <text class="mono" x="28" y="105">viewport 32,64 · 960×640</text>
+
+    <rect x="58" y="140" width="240" height="240" rx="8" fill="#d8e8ca" stroke="#b5aa98" stroke-width="2"/>
+    <g transform="translate(78 160)">
+      <rect class="cell corner" x="0" y="0" width="50" height="50"/><rect class="cell edge" x="50" y="0" width="50" height="50"/><rect class="cell edge" x="100" y="0" width="50" height="50"/><rect class="cell corner" x="150" y="0" width="50" height="50"/>
+      <rect class="cell edge" x="0" y="50" width="50" height="50"/><rect class="cell full" x="50" y="50" width="50" height="50"/><rect class="cell full" x="100" y="50" width="50" height="50"/><rect class="cell edge" x="150" y="50" width="50" height="50"/>
+      <rect class="cell edge" x="0" y="100" width="50" height="50"/><rect class="cell full" x="50" y="100" width="50" height="50"/><rect class="cell full" x="100" y="100" width="50" height="50"/><rect class="cell edge" x="150" y="100" width="50" height="50"/>
+      <rect class="cell corner" x="0" y="150" width="50" height="50"/><rect class="cell edge" x="50" y="150" width="50" height="50"/><rect class="cell edge" x="100" y="150" width="50" height="50"/><rect class="cell corner" x="150" y="150" width="50" height="50"/>
+    </g>
+    <text class="label center" x="178" y="414">一个源像素 → 4×4 fragment</text>
+    <text class="small center" x="178" y="444">中心 1.00 · 边缘 0.90 · 四角 0.80</text>
+    <rect x="28" y="474" width="299" height="54" rx="12" fill="#eee8dc"/>
+    <text class="small center" x="178" y="497">整数缩放保持像素锐利，</text>
+    <text class="small center" x="178" y="518">aperture 只提供轻微间距感</text>
+  </g>
+
+  <!-- Game Gear -->
+  <g transform="translate(815 125)">
+    <rect class="card" width="355" height="555" rx="24"/>
+    <text class="title" x="28" y="48">GAME GEAR</text>
+    <text class="subtitle" x="28" y="77">160×144 · non-square pixels</text>
+    <text class="mono" x="28" y="105">viewport 32,24 · 960×720</text>
+
+    <rect x="38" y="150" width="280" height="220" rx="8" fill="#d8e8ca" stroke="#b5aa98" stroke-width="2"/>
+    <g transform="translate(58 160)">
+      <!-- 6x5 cell: horizontally wider than vertically. -->
+      <rect class="cell corner" x="0" y="0" width="40" height="40"/><rect class="cell edge" x="40" y="0" width="40" height="40"/><rect class="cell edge" x="80" y="0" width="40" height="40"/><rect class="cell edge" x="120" y="0" width="40" height="40"/><rect class="cell edge" x="160" y="0" width="40" height="40"/><rect class="cell corner" x="200" y="0" width="40" height="40"/>
+      <rect class="cell edge" x="0" y="40" width="40" height="40"/><rect class="cell full" x="40" y="40" width="40" height="40"/><rect class="cell full" x="80" y="40" width="40" height="40"/><rect class="cell full" x="120" y="40" width="40" height="40"/><rect class="cell full" x="160" y="40" width="40" height="40"/><rect class="cell edge" x="200" y="40" width="40" height="40"/>
+      <rect class="cell edge" x="0" y="80" width="40" height="40"/><rect class="cell full" x="40" y="80" width="40" height="40"/><rect class="cell full" x="80" y="80" width="40" height="40"/><rect class="cell full" x="120" y="80" width="40" height="40"/><rect class="cell full" x="160" y="80" width="40" height="40"/><rect class="cell edge" x="200" y="80" width="40" height="40"/>
+      <rect class="cell edge" x="0" y="120" width="40" height="40"/><rect class="cell full" x="40" y="120" width="40" height="40"/><rect class="cell full" x="80" y="120" width="40" height="40"/><rect class="cell full" x="120" y="120" width="40" height="40"/><rect class="cell full" x="160" y="120" width="40" height="40"/><rect class="cell edge" x="200" y="120" width="40" height="40"/>
+      <rect class="cell corner" x="0" y="160" width="40" height="40"/><rect class="cell edge" x="40" y="160" width="40" height="40"/><rect class="cell edge" x="80" y="160" width="40" height="40"/><rect class="cell edge" x="120" y="160" width="40" height="40"/><rect class="cell edge" x="160" y="160" width="40" height="40"/><rect class="cell corner" x="200" y="160" width="40" height="40"/>
+    </g>
+    <text class="label center" x="178" y="414">一个源像素 → 6×5 fragment</text>
+    <text class="small center" x="178" y="444">横向 6、纵向 5 · 恢复约 4:3 LCD</text>
+    <rect x="28" y="474" width="299" height="54" rx="12" fill="#eee8dc"/>
+    <text class="small center" x="178" y="497">非方形像素映射，避免直接 5×</text>
+    <text class="small center" x="178" y="518">显示成过窄的 10:9 画面</text>
+  </g>
+
+  <!-- CRT -->
+  <g transform="translate(1200 125)">
+    <rect class="card" width="355" height="555" rx="24"/>
+    <text class="title" x="28" y="48">SFC / MD CRT</text>
+    <text class="subtitle" x="28" y="77">scanline · phosphor · blending</text>
+    <text class="mono" x="28" y="105">sharp / crt / composite</text>
+
+    <rect x="38" y="140" width="280" height="240" rx="8" fill="#10151d" stroke="#b5aa98" stroke-width="2"/>
+    <g transform="translate(58 160)">
+      <rect width="240" height="200" fill="url(#crtGlow)"/>
+      <!-- Three-line source pixel cell repeated vertically. -->
+      <g opacity="0.92">
+        <rect x="0" y="0" width="240" height="18" fill="#ebf0f4"/>
+        <rect x="0" y="18" width="240" height="18" fill="#cbd3da"/>
+        <rect x="0" y="36" width="240" height="18" fill="#808b96"/>
+        <rect x="0" y="68" width="240" height="18" fill="#ebf0f4"/>
+        <rect x="0" y="86" width="240" height="18" fill="#cbd3da"/>
+        <rect x="0" y="104" width="240" height="18" fill="#808b96"/>
+        <rect x="0" y="136" width="240" height="18" fill="#ebf0f4"/>
+        <rect x="0" y="154" width="240" height="18" fill="#cbd3da"/>
+        <rect x="0" y="172" width="240" height="18" fill="#808b96"/>
+      </g>
+      <!-- Very weak RGB phosphor columns. -->
+      <g opacity="0.18">
+        <rect x="0" width="80" height="200" fill="#ff4b4b"/>
+        <rect x="80" width="80" height="200" fill="#4bdf72"/>
+        <rect x="160" width="80" height="200" fill="#4b78ff"/>
+      </g>
+      <path d="M0 100 C40 72, 74 128, 120 100 S202 72, 240 100" fill="none" stroke="#fff" stroke-width="5" opacity="0.42"/>
+    </g>
+    <text class="label center" x="178" y="414">3 行扫描单元 + 弱 RGB mask</text>
+    <text class="small center" x="178" y="444">横向采样 · bloom · gamma 补偿</text>
+    <rect x="28" y="474" width="299" height="54" rx="12" fill="#eee8dc"/>
+    <text class="small center" x="178" y="497">Composite 额外错开彩色通道，</text>
+    <text class="small center" x="178" y="518">模拟 AV 输入的轻微色彩溢出</text>
+  </g>
+
+  <!-- Shared rendering pipeline -->
+  <text class="label center" x="800" y="730">共享渲染顺序</text>
+  <g transform="translate(125 760)">
+    <rect class="pipe" x="0" y="0" width="250" height="74" rx="16"/>
+    <text class="label center" x="125" y="31">Libretro framebuffer</text>
+    <text class="small center" x="125" y="55">原始像素与颜色输出</text>
+
+    <path class="arrow" d="M390 37 H455" marker-end="url(#arrowhead)"/>
+    <rect class="pipe" x="475" y="0" width="250" height="74" rx="16"/>
+    <text class="label center" x="600" y="31">Nearest viewport</text>
+    <text class="small center" x="600" y="55">整数缩放与固定坐标</text>
+
+    <path class="arrow" d="M740 37 H805" marker-end="url(#arrowhead)"/>
+    <rect class="pipe" x="825" y="0" width="250" height="74" rx="16"/>
+    <text class="label center" x="950" y="31">Fragment shader</text>
+    <text class="small center" x="950" y="55">LCD aperture 或 CRT</text>
+
+    <path class="arrow" d="M1090 37 H1155" marker-end="url(#arrowhead)"/>
+    <rect class="pipe" x="1175" y="0" width="250" height="74" rx="16"/>
+    <text class="label center" x="1300" y="31">Console overlay</text>
+    <text class="small center" x="1300" y="55">机型遮罩与塑料质感</text>
+  </g>
+</svg>

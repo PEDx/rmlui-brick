@@ -42,6 +42,27 @@
 
 GBA 游戏以原生 `240×160` 网格进行 4 倍整数缩放，显示区域为 `960×640`；GBC 游戏将原生 `160×144` 网格以 5 倍整数缩放到 `800×720`。两者都通过 fragment shader 生成绑定源像素的 LCD aperture，再叠加颗粒质感和各自的机型遮罩。截图来自当前真机运行帧缓冲，未使用桌面预览或后期效果模拟。
 
+## 屏幕模拟
+
+![GB/GBC、GBA、Game Gear 与 SFC/MD 的屏幕模拟原理示意图](docs/images/screen-simulation-guide.svg)
+
+示意图将每个源像素对应的输出 fragment 单元放大展示，并列出各平台的原始分辨率、固定 viewport 和渲染顺序。LCD 平台根据 fragment 在整数缩放单元中的位置生成 aperture；CRT 平台则使用扫描线、弱 phosphor mask、横向融合、bloom 和 gamma 补偿。
+
+GBA 的 `240×160` 画面以 4 倍整数缩放到 `(32,64,960,640)`。fragment shader 根据 fragment 相对游戏 viewport 的位置生成 4×4 aperture，效果绑定原始像素网格，不使用简单平铺的黑色网格图。
+
+GB/GBC 的 `160×144` 画面以 5 倍整数缩放到 `(112,24,800,720)`，由独立的 GB/GBC fragment shader 生成 5×5 aperture。原有 `gb-gbc-lcd-5x.png` 仅作为 GLES2 初始化失败时的 SDL renderer 回退资源。
+
+Game Gear 的 core 输出 `160×144`。原机 LCD 使用非方形像素，因此映射为 `(32,24,960,720)`，每个源像素对应 6×5 输出单元；shader 只轻微压暗单元边缘，随后再合成 Game Gear 遮罩。
+
+SFC 与 MD 使用独立 CRT 管线，提供：
+
+- `sharp`：清晰像素和较弱扫描线；
+- `crt`：轻微横向融合、bloom 和暗角；
+- `composite`：进一步模拟 AV 色彩溢出；
+- `off`：关闭屏幕 shader。
+
+更完整的尺寸、overscan 和预设说明见 [模拟器接入方案](docs/EMULATOR_INTEGRATION.md)。
+
 ## 已支持平台
 
 | 平台 | 系统目录 | ROM 格式 | Libretro core | 屏幕处理 |
@@ -196,23 +217,6 @@ launcher 通过原厂 `/tmp/cmd_to_run.sh` 完成显示交接。桌面退出后�
 --dp-ratio N        UI 密度倍率，范围 0.5～4.0
 --fullscreen        全屏运行
 ```
-
-## 屏幕模拟
-
-GBA 的 `240×160` 画面以 4 倍整数缩放到 `(32,64,960,640)`。fragment shader 根据 fragment 相对游戏 viewport 的位置生成 4×4 aperture，效果绑定原始像素网格，不使用简单平铺的黑色网格图。
-
-GB/GBC 的 `160×144` 画面以 5 倍整数缩放到 `(112,24,800,720)`，由独立的 GB/GBC fragment shader 生成 5×5 aperture。原有 `gb-gbc-lcd-5x.png` 仅作为 GLES2 初始化失败时的 SDL renderer 回退资源。
-
-Game Gear 的 core 输出 `160×144`。原机 LCD 使用非方形像素，因此映射为 `(32,24,960,720)`，每个源像素对应 6×5 输出单元；shader 只轻微压暗单元边缘，随后再合成 Game Gear 遮罩。
-
-SFC 与 MD 使用独立 CRT 管线，提供：
-
-- `sharp`：清晰像素和较弱扫描线；
-- `crt`：轻微横向融合、bloom 和暗角；
-- `composite`：进一步模拟 AV 色彩溢出；
-- `off`：关闭屏幕 shader。
-
-更完整的尺寸、overscan 和预设说明见 [模拟器接入方案](docs/EMULATOR_INTEGRATION.md)。
 
 ## 性能
 
