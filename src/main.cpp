@@ -16,6 +16,7 @@
 #include <ctime>
 #include <fstream>
 #include <string>
+#include <unordered_map>
 
 namespace {
 
@@ -32,6 +33,8 @@ constexpr int kGameVisibleCount = 4;
 constexpr int kGameTrackSlotCount = 6;
 constexpr int kGameCardStep = 236;
 constexpr int kGameTrackRestingLeft = -231;
+
+enum class CoverAspect { Square, Portrait, Landscape };
 
 struct ModelInfo {
     const char* id;
@@ -430,10 +433,37 @@ private:
             element->SetProperty("display", value);
     }
 
-    void SetImage(const char* id, const std::string& source)
+    CoverAspect GetCoverAspect(const std::string& source)
     {
-        if (Rml::Element* image = document->GetElementById(id))
-            image->SetAttribute("src", source);
+        const auto cached = cover_aspects.find(source);
+        if (cached != cover_aspects.end())
+            return cached->second;
+
+        CoverAspect aspect = CoverAspect::Square;
+        if (SDL_Surface* surface = IMG_Load(source.c_str())) {
+            if (surface->w > surface->h)
+                aspect = CoverAspect::Landscape;
+            else if (surface->h > surface->w)
+                aspect = CoverAspect::Portrait;
+            SDL_FreeSurface(surface);
+        } else {
+            std::fprintf(stderr, "[cover] failed to inspect %s: %s\n", source.c_str(), IMG_GetError());
+        }
+        cover_aspects.emplace(source, aspect);
+        return aspect;
+    }
+
+    void SetCoverImage(const char* id, const std::string& source, bool placeholder)
+    {
+        Rml::Element* image = document->GetElementById(id);
+        if (!image)
+            return;
+
+        image->SetAttribute("src", source);
+        const CoverAspect aspect = placeholder ? CoverAspect::Square : GetCoverAspect(source);
+        image->SetClass("cover-square", aspect == CoverAspect::Square);
+        image->SetClass("cover-portrait", aspect == CoverAspect::Portrait);
+        image->SetClass("cover-landscape", aspect == CoverAspect::Landscape);
     }
 
     void OpenLibrary(const std::string& preferred_rom_path = {})
@@ -507,9 +537,10 @@ private:
 
             const GameInfo& game = games[static_cast<std::size_t>(game_index)];
             card->SetClass("placeholder", game.cover.empty());
-            SetImage(
+            SetCoverImage(
                 Rml::CreateString("game-cover-%d", slot).c_str(),
-                game.cover.empty() ? system.console_image : game.cover);
+                game.cover.empty() ? system.console_image : game.cover,
+                game.cover.empty());
             SetText(
                 document,
                 Rml::CreateString("game-label-%d", slot).c_str(),
@@ -725,6 +756,7 @@ private:
     Rml::ElementDocument* document = nullptr;
     const Options& options;
     std::vector<GameInfo> games;
+    std::unordered_map<std::string, CoverAspect> cover_aspects;
     int selected_system = 1;
     int carousel_direction = 0;
     int carousel_incoming = 0;
